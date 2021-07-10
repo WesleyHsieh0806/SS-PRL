@@ -8,7 +8,7 @@ module load cuda/cuda-9.2/x86_64
 
 # Modify this line
 CONFIG_FILE=configs/densecl/fcn_r50-d8_512x512_20k_voc12aug.py
-GPUS=1
+GPUS=4
 OUTPUT_DIR=logs/swav/swav_800
 ./tools/dist_train.sh ${CONFIG_FILE} ${GPUS} --work-dir ${OUTPUT_DIR}
 ###
