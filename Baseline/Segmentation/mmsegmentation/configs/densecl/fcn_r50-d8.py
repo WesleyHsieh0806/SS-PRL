@@ -1,8 +1,10 @@
 # model settings
+import os
 norm_cfg = dict(type='SyncBN', requires_grad=True)
 model = dict(
     type='EncoderDecoder',
-    pretrained='../Models/swav_800.pth',
+    pretrained=os.path.join(os.path.dirname(__file__),
+                            '../../../Models/swav_800.pth'),
     backbone=dict(
         type='ResNetNormal',
         depth=50,
