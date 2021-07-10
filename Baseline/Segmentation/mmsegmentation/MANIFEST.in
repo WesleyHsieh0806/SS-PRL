@@ -1,5 +1,0 @@
-
-include requirements/*.txt
-include mmseg/model-index.yml
-recursive-include mmseg/configs *.py *.yml
-recursive-include mmseg/tools *.sh *.py
