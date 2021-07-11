@@ -2,14 +2,9 @@
 #PBS -l select=1:ncpus=8:ngpus=1
 #PBS -q ee
 
-<<<<<<< HEAD
-#source activate b06901053
-#cd $PBS_O_WORKDIR
-=======
 ############### 1. modify the name of vir-env
 source activate b06901053_mmseg
 cd $PBS_O_WORKDIR
->>>>>>> 633d51f181d37845ad1dee00475d21e9ba3c0703
 module load cuda/cuda-9.2/x86_64
 
 ######################
@@ -21,4 +16,4 @@ OUTPUT_DIR=logs/DenseCL
 ###
 
 
-#conda deactivate
+conda deactivate
