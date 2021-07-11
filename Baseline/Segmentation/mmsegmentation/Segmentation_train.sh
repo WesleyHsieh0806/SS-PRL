@@ -9,7 +9,8 @@ module load cuda/cuda-9.2/x86_64
 # Modify this line
 CONFIG_FILE=configs/densecl/fcn_r50-d8_512x512_20k_voc12aug.py
 GPUS=4
-OUTPUT_DIR=logs/swav/swav_800
+# Change the output dir and the path of pretrained model in fcn_r50-d8.py
+OUTPUT_DIR=logs/DenseCL
 ./tools/dist_train.sh ${CONFIG_FILE} ${GPUS} --work-dir ${OUTPUT_DIR}
 ###
 
