@@ -2,7 +2,7 @@
 norm_cfg = dict(type='SyncBN', requires_grad=True)
 model = dict(
     type='EncoderDecoder',
-    pretrained='./Hi.pth',
+    pretrained='../Models/Extracted_DenseCL.pth',
     backbone=dict(
         type='ResNetNormal',
         depth=50,
