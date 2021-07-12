@@ -13,7 +13,7 @@ GPUS=4
 # 2. Change the output dir 3. Change the path of pretrained model in fcn_r50-d8.py
 OUTPUT_DIR=logs/DenseCL
 CHECKPOINT_FILE=../Models/DenseCL.pth
-./tools/dist_train.sh ${CONFIG_FILE} ${GPUS} --work-dir ${OUTPUT_DIR} --load-from ${CHECKPOINT_FILE}
+./tools/dist_train.sh ${CONFIG_FILE} ${GPUS} --work-dir ${OUTPUT_DIR} 
 ###
 
 
