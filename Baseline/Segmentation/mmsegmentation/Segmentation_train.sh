@@ -3,8 +3,8 @@
 #PBS -q ee
 
 ############### 1. modify the name of vir-env
-# source activate b06901053_mmseg
-# cd $PBS_O_WORKDIR
+source activate b06901053_mmseg
+cd $PBS_O_WORKDIR
 module load cuda/cuda-9.2/x86_64
 
 ######################
@@ -17,4 +17,4 @@ CHECKPOINT_FILE=../Models/DenseCL.pth
 ###
 
 
-# conda deactivate
+conda deactivate
