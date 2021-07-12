@@ -12,7 +12,8 @@ CONFIG_FILE=configs/densecl/fcn_r50-d8_512x512_20k_voc12aug.py
 GPUS=4
 # 2. Change the output dir 3. Change the path of pretrained model in fcn_r50-d8.py
 OUTPUT_DIR=logs/DenseCL
-./tools/dist_train.sh ${CONFIG_FILE} ${GPUS} --work-dir ${OUTPUT_DIR}
+CHECKPOINT_FILE=../Models/DenseCL.pth
+./tools/dist_train.sh ${CONFIG_FILE} ${GPUS} --work-dir ${OUTPUT_DIR} --load-from ${CHECKPOINT_FILE}
 ###
 
 
