@@ -25,7 +25,9 @@
     bash get_VOC.sh $DATAROOT
     ```
 2. Organize the dataset structure as the same as [Reame.md](https://github.com/WXinlong/mmsegmentation/blob/master/docs/dataset_prepare.md)
-:warning: Remember to use the following command to concatenate **VOC_aug** and **VOC_2012**
+
+    :warning: Remember to use the following command to concatenate **VOC_aug** and **VOC_2012**
+
     ```bash    
         # --nproc means 8 process for conversion, which could be omitted as well.
         python tools/convert_datasets/voc_aug.py data/VOCdevkit data/VOCdevkit/VOCaug --nproc 8
