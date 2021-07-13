@@ -20,8 +20,8 @@ if os.path.isfile(args.pretrained):
     # Remove module
     state_dict = {k.replace("module.", ""): v for k, v in state_dict.items()}
 
-    densecl_model = torch.load(args.model)
-    for k, v in densecl_model.state_dict().items():
+    densecl_model = torch.load(args.model)["state_dict"]
+    for k, v in densecl_model.items():
         if k not in list(state_dict):
             print('key "{}" could not be found in provided state dict'.format(k))
         elif state_dict[k].shape != v.shape:
