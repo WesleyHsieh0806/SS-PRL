@@ -30,4 +30,4 @@ if os.path.isfile(args.pretrained):
     for k, v in state_dict.items():
         if k not in list(densecl_model.state_dict()):
             print('Extra key "{}" found!'.format(k))
-    save_dict = {"state_dict", state_dict}
+    save_dict = {"state_dict": state_dict}
