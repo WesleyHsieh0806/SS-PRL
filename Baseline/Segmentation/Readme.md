@@ -1,8 +1,21 @@
 # Usage
 ## Get the pretrained models :fire:
-```bash 
-./get_premodel.sh
-```
+1. Download the pretrained models 
+    ```bash 
+    ./get_premodel.sh
+    ```
+2. Change swav pretrained models into the same format as DenseCL 
+(We use the same setting as DenseCL in Semantic Segmentation)
+    ```bash
+    # In this python script, we remove weights of projection and prototype 
+    # Also, all the prefix 'module' are removed
+    python modify_swav_models.py --pretrained ${ORG_Model} --model ${Dense_Model} --newmodel ${MODIFY_Model}
+    ```
+    ***${ORG_Model}*** : path of the original pretrained model
+
+    ***${Dense_Model}*** : path of the DenseCL pretrained model
+
+    ***${MODIFY_Model}*** : path of the Modified models
 -------
 ## Semantic Segmentation Finetuning
 
