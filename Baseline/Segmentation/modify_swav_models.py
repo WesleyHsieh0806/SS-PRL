@@ -27,5 +27,7 @@ if os.path.isfile(args.pretrained):
         elif state_dict[k].shape != v.shape:
             print(
                 'key "{}" is of different shape in model and provided state dict'.format(k))
-
+    for k, v in state_dict.items():
+        if k not in list(densecl_model.state_dict()):
+            print('Extra key "{}" found!'.format(k))
     save_dict = {"state_dict", state_dict}
