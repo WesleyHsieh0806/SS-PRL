@@ -20,14 +20,14 @@ if os.path.isfile(args.pretrained):
     # Remove module
     state_dict = {k.replace("module.", ""): v for k, v in state_dict.items()}
 
-    densecl_model = torch.load(args.model)["state_dict"]
-    for k, v in densecl_model.items():
+    densecl_state = torch.load(args.model)["state_dict"]
+    for k, v in densecl_state.items():
         if k not in list(state_dict):
             print('key "{}" could not be found in provided state dict'.format(k))
         elif state_dict[k].shape != v.shape:
             print(
                 'key "{}" is of different shape in model and provided state dict'.format(k))
     for k, v in state_dict.items():
-        if k not in list(densecl_model.state_dict()):
+        if k not in list(densecl_state):
             print('Extra key "{}" found!'.format(k))
     save_dict = {"state_dict": state_dict}
