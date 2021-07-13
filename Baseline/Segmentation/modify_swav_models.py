@@ -13,12 +13,12 @@ args = parser.parse_args()
 if os.path.isfile(args.pretrained):
     model = torch.load(args.pretrained)
     if "state_dict" in model:
-        state_dict = model["state_dict"]
+        org_state_dict = model["state_dict"]
 
     else:
-        state_dict = model
+        org_state_dict = model
     # Remove module and projection head
-    for k, v in state_dict.items():
+    for k, v in org_state_dict.items():
         if ("projection" not in k) and ("prototype" not in k):
             state_dict[k.replace("module.", "")] = v
 
