@@ -12,6 +12,6 @@ if os.path.isfile(args.pretrained):
     model = torch.load(args.pretrained)
     if "state_dict" in model:
         state_dict = model["state_dict"]
-    # remove prefixe "module."
-    for k, v in state_dict.items():
-        print(k)
+        # remove prefixe "module."
+        for k, v in state_dict.items():
+            print(k)
