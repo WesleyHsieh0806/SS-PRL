@@ -592,9 +592,7 @@ class ResNet(nn.Module):
         """
         if isinstance(pretrained, str):
             # logger = get_root_logger()
-            # checkpoint = torch.load(pretrained)["state_dict"]
-            print("===========Load models from:{}==============".format(pretrained))
-            checkpoint = torch.load(pretrained)
+            checkpoint = torch.load(pretrained)["state_dict"]
             self.load_state_dict(checkpoint, strict=False)
             # load_checkpoint(self, pretrained, strict=False, logger=logger)
         elif pretrained is None:
