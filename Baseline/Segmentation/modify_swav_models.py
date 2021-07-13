@@ -16,6 +16,6 @@ if os.path.isfile(args.pretrained):
     else:
         state_dict = model
 
-    for k, v in state_dict:
+    for k, v in state_dict.items():
         print(k)
     save_dict = {"state_dict", state_dict}
