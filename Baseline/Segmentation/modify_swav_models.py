@@ -17,9 +17,12 @@ if os.path.isfile(args.pretrained):
 
     else:
         state_dict = model
-    # Remove module
-    state_dict = {k.replace("module.", ""): v for k, v in state_dict.items()}
+    # Remove module and projection head
+    for k, v in state_dict.items():
+        if ("projection" not in k) and ("prototype" not in k):
+            state_dict[k.replace("module.", "")] = v
 
+    # Check whether the module is the same as DenseCL
     densecl_state = torch.load(args.model)["state_dict"]
     for k, v in densecl_state.items():
         if k not in list(state_dict):
