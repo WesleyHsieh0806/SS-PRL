@@ -10,9 +10,12 @@ args = parser.parse_args()
 
 if os.path.isfile(args.pretrained):
     model = torch.load(args.pretrained)
-    print(model)
     if "state_dict" in model:
         state_dict = model["state_dict"]
-        # remove prefixe "module."
-        for k, v in state_dict.items():
-            print(k)
+
+    else:
+        state_dict = model
+
+    for k, v in state_dict:
+        print(k)
+    save_dict = {"state_dict", state_dict}
