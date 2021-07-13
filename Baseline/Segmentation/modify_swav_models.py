@@ -3,7 +3,8 @@ import os
 import argparse
 import sys
 '''
-* Since we follow the same setting in semantic segmentation, we have to modify the pretrained weights of SwAV
+* Since we follow the same setting in semantic segmentation, 
+* we have to modify the pretrained weights of SwAV into correct format
 '''
 
 
@@ -11,12 +12,13 @@ def main():
 
     parser = argparse.ArgumentParser(
         description="Modify swav pretrained files into correct format")
-    parser.add_argument("--pretrained", default="", type=str,
+    parser.add_argument("--pretrained", required=True, type=str,
                         help="path to pretrained weights")
-    parser.add_argument("--model", default="", type=str,
+    parser.add_argument("--model", default="./Models/DenseCL.pth", type=str,
                         help="path of DenseCL pretrained weights")
-    args = parser.parse_args("--newmodel", default="", type=str,
-                             help="path of Modified pretrained models")
+    parser.add_argument("--newmodel", required=True, type=str,
+                        help="path of Modified Models")
+    args = parser.parse_args()
 
     if os.path.isfile(args.pretrained):
         model = torch.load(args.pretrained)
@@ -46,6 +48,7 @@ def main():
             if k not in list(densecl_state):
                 print('Extra key "{}" found!'.format(k))
                 error = True
+
         if not error:
             # Save the modified model
             print("Save the models at :{}".format(args.newmodel))
