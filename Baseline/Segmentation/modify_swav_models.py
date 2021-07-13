@@ -2,12 +2,15 @@ import torch
 import os
 import argparse
 
+'''
+* Since we follow the same setting in semantic segmentation, we have to modify the pretrained weights of SwAV
+'''
 parser = argparse.ArgumentParser(
     description="Modify swav pretrained files into correct format")
 parser.add_argument("--pretrained", default="", type=str,
                     help="path to pretrained weights")
 parser.add_argument("--model", default="", type=str,
-                    help="path to pretrained weights")
+                    help="path of DenseCL pretrained weights")
 args = parser.parse_args()
 
 if os.path.isfile(args.pretrained):
@@ -18,6 +21,7 @@ if os.path.isfile(args.pretrained):
     else:
         org_state_dict = model
     # Remove module and projection head
+    state_dict = {}
     for k, v in org_state_dict.items():
         if ("projection" not in k) and ("prototype" not in k):
             state_dict[k.replace("module.", "")] = v
