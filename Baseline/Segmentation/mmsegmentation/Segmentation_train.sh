@@ -4,7 +4,7 @@
 
 ############### 1. modify the name of vir-env
 source activate b06901053_mmseg
-# cd $PBS_O_WORKDIR
+cd $PBS_O_WORKDIR
 module load cuda/cuda-9.2/x86_64
 
 ######################
@@ -17,4 +17,4 @@ CHECKPOINT_FILE=../Models/swav_800.pth
 ###
 
 
-# conda deactivate
+conda deactivate
