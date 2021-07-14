@@ -13,7 +13,7 @@ GPUS=4
 # 2. Change the output dir 3. Change the path of pretrained model in fcn_r50-d8.py
 OUTPUT_DIR=logs/swav/swav_800
 CHECKPOINT_FILE=logs/swav/swav_800/iter_12000.pth
-./tools/dist_train.sh ${CONFIG_FILE} ${GPUS} --work-dir ${OUTPUT_DIR} --resume_from ${CHECKPOINT_FILE}
+./tools/dist_train.sh ${CONFIG_FILE} ${GPUS} --work-dir ${OUTPUT_DIR} --resume-from ${CHECKPOINT_FILE}
 ###
 
 
