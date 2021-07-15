@@ -1,6 +1,7 @@
 #!/bin/bash
 #PBS -l select=1:ncpus=8:ngpus=1
 #PBS -q ee
+#PBS -l walltime=24:00:00
 
 ############### 1. modify the name of vir-env
 source activate b06901053_mmseg
