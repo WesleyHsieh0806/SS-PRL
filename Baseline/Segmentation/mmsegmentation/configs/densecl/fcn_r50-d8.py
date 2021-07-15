@@ -2,7 +2,7 @@
 norm_cfg = dict(type='SyncBN', requires_grad=True)
 model = dict(
     type='EncoderDecoder',
-    pretrained='../Models/swav_800.pth',
+    pretrained='../Models/swav_noMC.pth',
     backbone=dict(
         type='ResNetNormal',
         depth=50,
