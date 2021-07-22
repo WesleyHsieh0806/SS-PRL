@@ -23,7 +23,7 @@ python linear_eval.py \
 --lr 0.3 \
 --epochs 100
 ```
-For more training options, please refer to the code [here](https://github.com/WesleyHsieh0806/ML-SSL/blob/559c1e938414f91240c9e51a2e053a25ae66691b/Baseline/MultiLabel/linear_eval.py#L32).  
+For more training options, please refer to the code [here](linear_eval.py#L32).  
 Note that  
 - `--dataset` should be either `voc` or `coco`, and `--data_path` should specify the path to the dataset.
 - the options of `--model_name` are `[byol, swav, densecl, scrl, moco, detco]`, and `--pretrained` should specify the path to the pretrained weights mentioned in [this section](#supported-pretrained-models).
