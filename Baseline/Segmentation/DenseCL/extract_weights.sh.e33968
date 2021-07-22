@@ -1,6 +1,0 @@
-Traceback (most recent call last):
-  File "tools/extract_backbone_weights.py", line 31, in <module>
-    main()
-  File "tools/extract_backbone_weights.py", line 26, in main
-    raise Exception("Cannot find a backbone module in the checkpoint.")
-Exception: Cannot find a backbone module in the checkpoint.
