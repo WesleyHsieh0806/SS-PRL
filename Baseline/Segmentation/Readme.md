@@ -29,10 +29,15 @@
     :warning: Remember to use the following command to concatenate **VOC_aug** and **VOC_2012**
 
     ```bash    
+        cd mmsegmentation
         # --nproc means 8 process for conversion, which could be omitted as well.
         python tools/convert_datasets/voc_aug.py data/VOCdevkit data/VOCdevkit/VOCaug --nproc 8
     ```
 3. create links between mmsegmentation/data and your **$DATAROOT**
+    ```bash    
+        cd mmsegmentation
+        ln -s $DATAROOT/VOCdevkit ./data
+    ```
 ### Start FineTuning
 You can also refer to [DenseCL](https://github.com/WXinlong/DenseCL/blob/main/benchmarks/detection/README.md)
 1. **cd mmsegmentation**
