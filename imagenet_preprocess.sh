@@ -4,7 +4,7 @@ if [ "$DATA" == "" ]; then
     exit
 fi
 # Preprocess *.tar 
-cd $DATA
+cd $DATA/train
 find . -name "*.tar"|while read NAE; 
     do mkdir -p "${NAE%.tar}"; 
     tar -xvf "${NAE}" -C "${NAE%.tar}"; 
