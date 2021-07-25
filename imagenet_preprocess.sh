@@ -3,6 +3,14 @@ if [ "$DATA" == "" ]; then
     echo "Usage: bash ./get_ImageNet.sh YOUR_DATA_ROOT"
     exit
 fi
+# Preprocess *.tar 
+cd $DATA
+find . -name "*.tar"|while read NAE; 
+    do mkdir -p "${NAE%.tar}"; 
+    tar -xvf "${NAE}" -C "${NAE%.tar}"; 
+    rm -f "${NAE}"; 
+done
+
 
 cd $DATA/val
 # Move all val images into its corresponding label directories
