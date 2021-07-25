@@ -2,7 +2,8 @@
 #PBS -l select=1:ncpus=8:ngpus=1
 #PBS -q ee
 #PBS -l walltime=24:00:00
-DATA="$1"
+cd $PBS_O_WORKDIR
+DATA="./data"
 if [ "$DATA" == "" ]; then
     echo "Usage: bash ./get_ImageNet.sh YOUR_DATA_ROOT"
     exit
