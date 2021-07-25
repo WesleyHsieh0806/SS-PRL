@@ -1,7 +1,7 @@
 norm_cfg = dict(type='SyncBN', requires_grad=True)
 model = dict(
     type='EncoderDecoder',
-    pretrained='../Models/swav_800.pth',
+    pretrained='../Models/swav_noMC.pth',
     backbone=dict(
         type='ResNetNormal',
         depth=50,
@@ -161,7 +161,7 @@ log_config = dict(
 dist_params = dict(backend='nccl')
 log_level = 'INFO'
 load_from = None
-resume_from = 'logs/swav/swav_800/iter_12000.pth'
+resume_from = None
 workflow = [('train', 1)]
 cudnn_benchmark = True
 optimizer = dict(type='SGD', lr=0.01, momentum=0.9, weight_decay=0.0005)
@@ -170,5 +170,5 @@ lr_config = dict(policy='poly', power=0.9, min_lr=0.0001, by_epoch=False)
 runner = dict(type='IterBasedRunner', max_iters=20000)
 checkpoint_config = dict(by_epoch=False, interval=2000)
 evaluation = dict(interval=2000, metric='mIoU')
-work_dir = 'logs/swav/swav_800'
+work_dir = 'logs/swav/swav_noMC'
 gpu_ids = range(0, 1)

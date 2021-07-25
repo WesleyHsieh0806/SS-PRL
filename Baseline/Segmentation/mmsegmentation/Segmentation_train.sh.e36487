@@ -1,0 +1,522 @@
+2021-07-15 13:34:08,928 - mmseg - INFO - Environment info:
+------------------------------------------------------------
+sys.platform: linux
+Python: 3.7.10 (default, Jun  4 2021, 14:48:32) [GCC 7.5.0]
+CUDA available: True
+GPU 0,1,2,3: NVIDIA Tesla V100-SXM2-32GB
+CUDA_HOME: /usr/local/cuda-9.2
+NVCC: Cuda compilation tools, release 9.2, V9.2.148
+GCC: gcc (GCC) 4.8.5 20150623 (Red Hat 4.8.5-28)
+PyTorch: 1.6.0+cu92
+PyTorch compiling details: PyTorch built with:
+  - GCC 7.3
+  - C++ Version: 201402
+  - Intel(R) oneAPI Math Kernel Library Version 2021.2-Product Build 20210312 for Intel(R) 64 architecture applications
+  - Intel(R) MKL-DNN v1.5.0 (Git Hash e2ac1fac44c5078ca927cb9b90e1b3066a0b2ed0)
+  - OpenMP 201511 (a.k.a. OpenMP 4.5)
+  - NNPACK is enabled
+  - CPU capability usage: AVX2
+  - CUDA Runtime 9.2
+  - NVCC architecture flags: -gencode;arch=compute_37,code=sm_37;-gencode;arch=compute_50,code=sm_50;-gencode;arch=compute_60,code=sm_60;-gencode;arch=compute_70,code=sm_70
+  - CuDNN 7.6.3
+  - Magma 2.5.2
+  - Build settings: BLAS=MKL, BUILD_TYPE=Release, CXX_FLAGS= -Wno-deprecated -fvisibility-inlines-hidden -DUSE_PTHREADPOOL -fopenmp -DNDEBUG -DUSE_FBGEMM -DUSE_QNNPACK -DUSE_PYTORCH_QNNPACK -DUSE_XNNPACK -DUSE_VULKAN_WRAPPER -O2 -fPIC -Wno-narrowing -Wall -Wextra -Werror=return-type -Wno-missing-field-initializers -Wno-type-limits -Wno-array-bounds -Wno-unknown-pragmas -Wno-sign-compare -Wno-unused-parameter -Wno-unused-variable -Wno-unused-function -Wno-unused-result -Wno-unused-local-typedefs -Wno-strict-overflow -Wno-strict-aliasing -Wno-error=deprecated-declarations -Wno-stringop-overflow -Wno-error=pedantic -Wno-error=redundant-decls -Wno-error=old-style-cast -fdiagnostics-color=always -faligned-new -Wno-unused-but-set-variable -Wno-maybe-uninitialized -fno-math-errno -fno-trapping-math -Werror=format -Wno-stringop-overflow, PERF_WITH_AVX=1, PERF_WITH_AVX2=1, PERF_WITH_AVX512=1, USE_CUDA=ON, USE_EXCEPTION_PTR=1, USE_GFLAGS=OFF, USE_GLOG=OFF, USE_MKL=ON, USE_MKLDNN=ON, USE_MPI=OFF, USE_NCCL=ON, USE_NNPACK=ON, USE_OPENMP=ON, USE_STATIC_DISPATCH=OFF, 
+
+TorchVision: 0.7.0+cu92
+OpenCV: 4.5.3
+MMCV: 1.1.5
+MMCV Compiler: GCC 7.3
+MMCV CUDA Compiler: 9.2
+MMSegmentation: 0.11.0+f9dbac3
+------------------------------------------------------------
+
+2021-07-15 13:34:08,929 - mmseg - INFO - Distributed training: True
+/home/eegroup/eefrank/b06901053/ML-SSL/Baseline/Segmentation/mmsegmentation/mmseg/models/builder.py:61: UserWarning: train_cfg and test_cfg is deprecated, please specify them in model
+  'please specify them in model', UserWarning)
+2021-07-15 13:34:09,254 - mmseg - INFO - Config:
+norm_cfg = dict(type='SyncBN', requires_grad=True)
+model = dict(
+    type='EncoderDecoder',
+    pretrained='../Models/swav_noMC.pth',
+    backbone=dict(
+        type='ResNetNormal',
+        depth=50,
+        num_stages=4,
+        out_indices=(0, 1, 2, 3),
+        dilations=(1, 1, 2, 4),
+        strides=(1, 2, 1, 1),
+        norm_cfg=dict(type='SyncBN', requires_grad=True),
+        norm_eval=False,
+        style='pytorch',
+        contract_dilation=True),
+    decode_head=dict(
+        type='FCNHead',
+        in_channels=2048,
+        in_index=3,
+        channels=512,
+        num_convs=2,
+        concat_input=True,
+        dropout_ratio=0.1,
+        num_classes=21,
+        norm_cfg=dict(type='SyncBN', requires_grad=True),
+        align_corners=False,
+        loss_decode=dict(
+            type='CrossEntropyLoss', use_sigmoid=False, loss_weight=1.0)),
+    auxiliary_head=dict(
+        type='FCNHead',
+        in_channels=1024,
+        in_index=2,
+        channels=256,
+        num_convs=1,
+        concat_input=False,
+        dropout_ratio=0.1,
+        num_classes=21,
+        norm_cfg=dict(type='SyncBN', requires_grad=True),
+        align_corners=False,
+        loss_decode=dict(
+            type='CrossEntropyLoss', use_sigmoid=False, loss_weight=0.4)))
+train_cfg = dict()
+test_cfg = dict(mode='whole')
+dataset_type = 'PascalVOCDataset'
+data_root = 'data/VOCdevkit/VOC2012'
+img_norm_cfg = dict(
+    mean=[123.675, 116.28, 103.53], std=[58.395, 57.12, 57.375], to_rgb=True)
+crop_size = (512, 512)
+train_pipeline = [
+    dict(type='LoadImageFromFile'),
+    dict(type='LoadAnnotations'),
+    dict(type='Resize', img_scale=(2048, 512), ratio_range=(0.5, 2.0)),
+    dict(type='RandomCrop', crop_size=(512, 512), cat_max_ratio=0.75),
+    dict(type='RandomFlip', prob=0.5),
+    dict(type='PhotoMetricDistortion'),
+    dict(
+        type='Normalize',
+        mean=[123.675, 116.28, 103.53],
+        std=[58.395, 57.12, 57.375],
+        to_rgb=True),
+    dict(type='Pad', size=(512, 512), pad_val=0, seg_pad_val=255),
+    dict(type='DefaultFormatBundle'),
+    dict(type='Collect', keys=['img', 'gt_semantic_seg'])
+]
+test_pipeline = [
+    dict(type='LoadImageFromFile'),
+    dict(
+        type='MultiScaleFlipAug',
+        img_scale=(2048, 512),
+        flip=False,
+        transforms=[
+            dict(type='Resize', keep_ratio=True),
+            dict(type='RandomFlip'),
+            dict(
+                type='Normalize',
+                mean=[123.675, 116.28, 103.53],
+                std=[58.395, 57.12, 57.375],
+                to_rgb=True),
+            dict(type='ImageToTensor', keys=['img']),
+            dict(type='Collect', keys=['img'])
+        ])
+]
+data = dict(
+    samples_per_gpu=4,
+    workers_per_gpu=4,
+    train=dict(
+        type='PascalVOCDataset',
+        data_root='data/VOCdevkit/VOC2012',
+        img_dir='JPEGImages',
+        ann_dir=['SegmentationClass', 'SegmentationClassAug'],
+        split=[
+            'ImageSets/Segmentation/train.txt',
+            'ImageSets/Segmentation/aug.txt'
+        ],
+        pipeline=[
+            dict(type='LoadImageFromFile'),
+            dict(type='LoadAnnotations'),
+            dict(type='Resize', img_scale=(2048, 512), ratio_range=(0.5, 2.0)),
+            dict(type='RandomCrop', crop_size=(512, 512), cat_max_ratio=0.75),
+            dict(type='RandomFlip', prob=0.5),
+            dict(type='PhotoMetricDistortion'),
+            dict(
+                type='Normalize',
+                mean=[123.675, 116.28, 103.53],
+                std=[58.395, 57.12, 57.375],
+                to_rgb=True),
+            dict(type='Pad', size=(512, 512), pad_val=0, seg_pad_val=255),
+            dict(type='DefaultFormatBundle'),
+            dict(type='Collect', keys=['img', 'gt_semantic_seg'])
+        ]),
+    val=dict(
+        type='PascalVOCDataset',
+        data_root='data/VOCdevkit/VOC2012',
+        img_dir='JPEGImages',
+        ann_dir='SegmentationClass',
+        split='ImageSets/Segmentation/val.txt',
+        pipeline=[
+            dict(type='LoadImageFromFile'),
+            dict(
+                type='MultiScaleFlipAug',
+                img_scale=(2048, 512),
+                flip=False,
+                transforms=[
+                    dict(type='Resize', keep_ratio=True),
+                    dict(type='RandomFlip'),
+                    dict(
+                        type='Normalize',
+                        mean=[123.675, 116.28, 103.53],
+                        std=[58.395, 57.12, 57.375],
+                        to_rgb=True),
+                    dict(type='ImageToTensor', keys=['img']),
+                    dict(type='Collect', keys=['img'])
+                ])
+        ]),
+    test=dict(
+        type='PascalVOCDataset',
+        data_root='data/VOCdevkit/VOC2012',
+        img_dir='JPEGImages',
+        ann_dir='SegmentationClass',
+        split='ImageSets/Segmentation/val.txt',
+        pipeline=[
+            dict(type='LoadImageFromFile'),
+            dict(
+                type='MultiScaleFlipAug',
+                img_scale=(2048, 512),
+                flip=False,
+                transforms=[
+                    dict(type='Resize', keep_ratio=True),
+                    dict(type='RandomFlip'),
+                    dict(
+                        type='Normalize',
+                        mean=[123.675, 116.28, 103.53],
+                        std=[58.395, 57.12, 57.375],
+                        to_rgb=True),
+                    dict(type='ImageToTensor', keys=['img']),
+                    dict(type='Collect', keys=['img'])
+                ])
+        ]))
+log_config = dict(
+    interval=50, hooks=[dict(type='TextLoggerHook', by_epoch=False)])
+dist_params = dict(backend='nccl')
+log_level = 'INFO'
+load_from = None
+resume_from = None
+workflow = [('train', 1)]
+cudnn_benchmark = True
+optimizer = dict(type='SGD', lr=0.01, momentum=0.9, weight_decay=0.0005)
+optimizer_config = dict()
+lr_config = dict(policy='poly', power=0.9, min_lr=0.0001, by_epoch=False)
+runner = dict(type='IterBasedRunner', max_iters=20000)
+checkpoint_config = dict(by_epoch=False, interval=2000)
+evaluation = dict(interval=2000, metric='mIoU')
+work_dir = 'logs/swav/swav_noMC'
+gpu_ids = range(0, 1)
+
+/home/eegroup/eefrank/b06901053/ML-SSL/Baseline/Segmentation/mmsegmentation/mmseg/models/builder.py:61: UserWarning: train_cfg and test_cfg is deprecated, please specify them in model
+  'please specify them in model', UserWarning)
+/home/eegroup/eefrank/b06901053/ML-SSL/Baseline/Segmentation/mmsegmentation/mmseg/models/builder.py:61: UserWarning: train_cfg and test_cfg is deprecated, please specify them in model
+  'please specify them in model', UserWarning)
+/home/eegroup/eefrank/b06901053/ML-SSL/Baseline/Segmentation/mmsegmentation/mmseg/models/builder.py:61: UserWarning: train_cfg and test_cfg is deprecated, please specify them in model
+  'please specify them in model', UserWarning)
+2021-07-15 13:34:15,994 - mmseg - INFO - EncoderDecoder(
+  (backbone): ResNetNormal(
+    (conv1): Conv2d(3, 64, kernel_size=(7, 7), stride=(2, 2), padding=(3, 3), bias=False)
+    (bn1): SyncBatchNorm(64, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+    (relu): ReLU(inplace=True)
+    (maxpool): MaxPool2d(kernel_size=3, stride=2, padding=1, dilation=1, ceil_mode=False)
+    (layer1): ResLayer(
+      (0): Bottleneck(
+        (conv1): Conv2d(64, 64, kernel_size=(1, 1), stride=(1, 1), bias=False)
+        (bn1): SyncBatchNorm(64, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+        (conv2): Conv2d(64, 64, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
+        (bn2): SyncBatchNorm(64, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+        (conv3): Conv2d(64, 256, kernel_size=(1, 1), stride=(1, 1), bias=False)
+        (bn3): SyncBatchNorm(256, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+        (relu): ReLU(inplace=True)
+        (downsample): Sequential(
+          (0): Conv2d(64, 256, kernel_size=(1, 1), stride=(1, 1), bias=False)
+          (1): SyncBatchNorm(256, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+        )
+      )
+      (1): Bottleneck(
+        (conv1): Conv2d(256, 64, kernel_size=(1, 1), stride=(1, 1), bias=False)
+        (bn1): SyncBatchNorm(64, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+        (conv2): Conv2d(64, 64, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
+        (bn2): SyncBatchNorm(64, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+        (conv3): Conv2d(64, 256, kernel_size=(1, 1), stride=(1, 1), bias=False)
+        (bn3): SyncBatchNorm(256, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+        (relu): ReLU(inplace=True)
+      )
+      (2): Bottleneck(
+        (conv1): Conv2d(256, 64, kernel_size=(1, 1), stride=(1, 1), bias=False)
+        (bn1): SyncBatchNorm(64, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+        (conv2): Conv2d(64, 64, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
+        (bn2): SyncBatchNorm(64, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+        (conv3): Conv2d(64, 256, kernel_size=(1, 1), stride=(1, 1), bias=False)
+        (bn3): SyncBatchNorm(256, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+        (relu): ReLU(inplace=True)
+      )
+    )
+    (layer2): ResLayer(
+      (0): Bottleneck(
+        (conv1): Conv2d(256, 128, kernel_size=(1, 1), stride=(1, 1), bias=False)
+        (bn1): SyncBatchNorm(128, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+        (conv2): Conv2d(128, 128, kernel_size=(3, 3), stride=(2, 2), padding=(1, 1), bias=False)
+        (bn2): SyncBatchNorm(128, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+        (conv3): Conv2d(128, 512, kernel_size=(1, 1), stride=(1, 1), bias=False)
+        (bn3): SyncBatchNorm(512, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+        (relu): ReLU(inplace=True)
+        (downsample): Sequential(
+          (0): Conv2d(256, 512, kernel_size=(1, 1), stride=(2, 2), bias=False)
+          (1): SyncBatchNorm(512, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+        )
+      )
+      (1): Bottleneck(
+        (conv1): Conv2d(512, 128, kernel_size=(1, 1), stride=(1, 1), bias=False)
+        (bn1): SyncBatchNorm(128, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+        (conv2): Conv2d(128, 128, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
+        (bn2): SyncBatchNorm(128, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+        (conv3): Conv2d(128, 512, kernel_size=(1, 1), stride=(1, 1), bias=False)
+        (bn3): SyncBatchNorm(512, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+        (relu): ReLU(inplace=True)
+      )
+      (2): Bottleneck(
+        (conv1): Conv2d(512, 128, kernel_size=(1, 1), stride=(1, 1), bias=False)
+        (bn1): SyncBatchNorm(128, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+        (conv2): Conv2d(128, 128, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
+        (bn2): SyncBatchNorm(128, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+        (conv3): Conv2d(128, 512, kernel_size=(1, 1), stride=(1, 1), bias=False)
+        (bn3): SyncBatchNorm(512, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+        (relu): ReLU(inplace=True)
+      )
+      (3): Bottleneck(
+        (conv1): Conv2d(512, 128, kernel_size=(1, 1), stride=(1, 1), bias=False)
+        (bn1): SyncBatchNorm(128, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+        (conv2): Conv2d(128, 128, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
+        (bn2): SyncBatchNorm(128, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+        (conv3): Conv2d(128, 512, kernel_size=(1, 1), stride=(1, 1), bias=False)
+        (bn3): SyncBatchNorm(512, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+        (relu): ReLU(inplace=True)
+      )
+    )
+    (layer3): ResLayer(
+      (0): Bottleneck(
+        (conv1): Conv2d(512, 256, kernel_size=(1, 1), stride=(1, 1), bias=False)
+        (bn1): SyncBatchNorm(256, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+        (conv2): Conv2d(256, 256, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
+        (bn2): SyncBatchNorm(256, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+        (conv3): Conv2d(256, 1024, kernel_size=(1, 1), stride=(1, 1), bias=False)
+        (bn3): SyncBatchNorm(1024, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+        (relu): ReLU(inplace=True)
+        (downsample): Sequential(
+          (0): Conv2d(512, 1024, kernel_size=(1, 1), stride=(1, 1), bias=False)
+          (1): SyncBatchNorm(1024, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+        )
+      )
+      (1): Bottleneck(
+        (conv1): Conv2d(1024, 256, kernel_size=(1, 1), stride=(1, 1), bias=False)
+        (bn1): SyncBatchNorm(256, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+        (conv2): Conv2d(256, 256, kernel_size=(3, 3), stride=(1, 1), padding=(2, 2), dilation=(2, 2), bias=False)
+        (bn2): SyncBatchNorm(256, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+        (conv3): Conv2d(256, 1024, kernel_size=(1, 1), stride=(1, 1), bias=False)
+        (bn3): SyncBatchNorm(1024, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+        (relu): ReLU(inplace=True)
+      )
+      (2): Bottleneck(
+        (conv1): Conv2d(1024, 256, kernel_size=(1, 1), stride=(1, 1), bias=False)
+        (bn1): SyncBatchNorm(256, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+        (conv2): Conv2d(256, 256, kernel_size=(3, 3), stride=(1, 1), padding=(2, 2), dilation=(2, 2), bias=False)
+        (bn2): SyncBatchNorm(256, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+        (conv3): Conv2d(256, 1024, kernel_size=(1, 1), stride=(1, 1), bias=False)
+        (bn3): SyncBatchNorm(1024, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+        (relu): ReLU(inplace=True)
+      )
+      (3): Bottleneck(
+        (conv1): Conv2d(1024, 256, kernel_size=(1, 1), stride=(1, 1), bias=False)
+        (bn1): SyncBatchNorm(256, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+        (conv2): Conv2d(256, 256, kernel_size=(3, 3), stride=(1, 1), padding=(2, 2), dilation=(2, 2), bias=False)
+        (bn2): SyncBatchNorm(256, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+        (conv3): Conv2d(256, 1024, kernel_size=(1, 1), stride=(1, 1), bias=False)
+        (bn3): SyncBatchNorm(1024, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+        (relu): ReLU(inplace=True)
+      )
+      (4): Bottleneck(
+        (conv1): Conv2d(1024, 256, kernel_size=(1, 1), stride=(1, 1), bias=False)
+        (bn1): SyncBatchNorm(256, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+        (conv2): Conv2d(256, 256, kernel_size=(3, 3), stride=(1, 1), padding=(2, 2), dilation=(2, 2), bias=False)
+        (bn2): SyncBatchNorm(256, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+        (conv3): Conv2d(256, 1024, kernel_size=(1, 1), stride=(1, 1), bias=False)
+        (bn3): SyncBatchNorm(1024, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+        (relu): ReLU(inplace=True)
+      )
+      (5): Bottleneck(
+        (conv1): Conv2d(1024, 256, kernel_size=(1, 1), stride=(1, 1), bias=False)
+        (bn1): SyncBatchNorm(256, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+        (conv2): Conv2d(256, 256, kernel_size=(3, 3), stride=(1, 1), padding=(2, 2), dilation=(2, 2), bias=False)
+        (bn2): SyncBatchNorm(256, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+        (conv3): Conv2d(256, 1024, kernel_size=(1, 1), stride=(1, 1), bias=False)
+        (bn3): SyncBatchNorm(1024, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+        (relu): ReLU(inplace=True)
+      )
+    )
+    (layer4): ResLayer(
+      (0): Bottleneck(
+        (conv1): Conv2d(1024, 512, kernel_size=(1, 1), stride=(1, 1), bias=False)
+        (bn1): SyncBatchNorm(512, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+        (conv2): Conv2d(512, 512, kernel_size=(3, 3), stride=(1, 1), padding=(2, 2), dilation=(2, 2), bias=False)
+        (bn2): SyncBatchNorm(512, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+        (conv3): Conv2d(512, 2048, kernel_size=(1, 1), stride=(1, 1), bias=False)
+        (bn3): SyncBatchNorm(2048, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+        (relu): ReLU(inplace=True)
+        (downsample): Sequential(
+          (0): Conv2d(1024, 2048, kernel_size=(1, 1), stride=(1, 1), bias=False)
+          (1): SyncBatchNorm(2048, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+        )
+      )
+      (1): Bottleneck(
+        (conv1): Conv2d(2048, 512, kernel_size=(1, 1), stride=(1, 1), bias=False)
+        (bn1): SyncBatchNorm(512, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+        (conv2): Conv2d(512, 512, kernel_size=(3, 3), stride=(1, 1), padding=(4, 4), dilation=(4, 4), bias=False)
+        (bn2): SyncBatchNorm(512, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+        (conv3): Conv2d(512, 2048, kernel_size=(1, 1), stride=(1, 1), bias=False)
+        (bn3): SyncBatchNorm(2048, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+        (relu): ReLU(inplace=True)
+      )
+      (2): Bottleneck(
+        (conv1): Conv2d(2048, 512, kernel_size=(1, 1), stride=(1, 1), bias=False)
+        (bn1): SyncBatchNorm(512, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+        (conv2): Conv2d(512, 512, kernel_size=(3, 3), stride=(1, 1), padding=(4, 4), dilation=(4, 4), bias=False)
+        (bn2): SyncBatchNorm(512, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+        (conv3): Conv2d(512, 2048, kernel_size=(1, 1), stride=(1, 1), bias=False)
+        (bn3): SyncBatchNorm(2048, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+        (relu): ReLU(inplace=True)
+      )
+    )
+  )
+  (decode_head): FCNHead(
+    input_transform=None, ignore_index=255, align_corners=False
+    (loss_decode): CrossEntropyLoss()
+    (conv_seg): Conv2d(512, 21, kernel_size=(1, 1), stride=(1, 1))
+    (dropout): Dropout2d(p=0.1, inplace=False)
+    (convs): Sequential(
+      (0): ConvModule(
+        (conv): Conv2d(2048, 512, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
+        (bn): SyncBatchNorm(512, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+        (activate): ReLU(inplace=True)
+      )
+      (1): ConvModule(
+        (conv): Conv2d(512, 512, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
+        (bn): SyncBatchNorm(512, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+        (activate): ReLU(inplace=True)
+      )
+    )
+    (conv_cat): ConvModule(
+      (conv): Conv2d(2560, 512, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
+      (bn): SyncBatchNorm(512, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+      (activate): ReLU(inplace=True)
+    )
+  )
+  (auxiliary_head): FCNHead(
+    input_transform=None, ignore_index=255, align_corners=False
+    (loss_decode): CrossEntropyLoss()
+    (conv_seg): Conv2d(256, 21, kernel_size=(1, 1), stride=(1, 1))
+    (dropout): Dropout2d(p=0.1, inplace=False)
+    (convs): Sequential(
+      (0): ConvModule(
+        (conv): Conv2d(1024, 256, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1), bias=False)
+        (bn): SyncBatchNorm(256, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+        (activate): ReLU(inplace=True)
+      )
+    )
+  )
+)
+2021-07-15 13:34:16,001 - mmseg - INFO - Loaded 1464 images
+2021-07-15 13:34:16,021 - mmseg - INFO - Loaded 9118 images
+2021-07-15 13:34:21,842 - mmseg - INFO - Loaded 1449 images
+2021-07-15 13:34:21,843 - mmseg - INFO - Start running, host: eefrank@v100-5, work_dir: /home/eegroup/eefrank/b06901053/ML-SSL/Baseline/Segmentation/mmsegmentation/logs/swav/swav_noMC
+2021-07-15 13:34:21,843 - mmseg - INFO - workflow: [('train', 1)], max: 20000 iters
+2021-07-15 13:35:18,304 - mmseg - INFO - Iter [50/20000]	lr: 9.978e-03, eta: 5:24:02, time: 0.975, data_time: 0.004, memory: 20165, decode.loss_seg: 1.4935, decode.acc_seg: 54.8674, aux.loss_seg: 0.6929, aux.acc_seg: 51.6798, loss: 2.1864
+2021-07-15 13:35:57,151 - mmseg - INFO - Iter [100/20000]	lr: 9.956e-03, eta: 4:50:31, time: 0.777, data_time: 0.005, memory: 20165, decode.loss_seg: 1.0641, decode.acc_seg: 63.2067, aux.loss_seg: 0.5461, aux.acc_seg: 56.1326, loss: 1.6102
+2021-07-15 13:36:36,506 - mmseg - INFO - Iter [150/20000]	lr: 9.934e-03, eta: 4:39:56, time: 0.787, data_time: 0.005, memory: 20165, decode.loss_seg: 0.9721, decode.acc_seg: 64.2716, aux.loss_seg: 0.5291, aux.acc_seg: 56.4840, loss: 1.5011
+2021-07-15 13:37:14,940 - mmseg - INFO - Iter [200/20000]	lr: 9.911e-03, eta: 4:32:52, time: 0.769, data_time: 0.005, memory: 20165, decode.loss_seg: 0.8715, decode.acc_seg: 65.8003, aux.loss_seg: 0.4937, aux.acc_seg: 57.7699, loss: 1.3653
+2021-07-15 13:37:53,858 - mmseg - INFO - Iter [250/20000]	lr: 9.889e-03, eta: 4:28:59, time: 0.778, data_time: 0.005, memory: 20165, decode.loss_seg: 0.8638, decode.acc_seg: 65.7599, aux.loss_seg: 0.4985, aux.acc_seg: 57.4464, loss: 1.3624
+2021-07-15 13:38:32,956 - mmseg - INFO - Iter [300/20000]	lr: 9.867e-03, eta: 4:26:22, time: 0.782, data_time: 0.005, memory: 20165, decode.loss_seg: 0.8470, decode.acc_seg: 65.3920, aux.loss_seg: 0.4876, aux.acc_seg: 57.6852, loss: 1.3346
+2021-07-15 13:39:10,709 - mmseg - INFO - Iter [350/20000]	lr: 9.844e-03, eta: 4:23:04, time: 0.755, data_time: 0.005, memory: 20165, decode.loss_seg: 0.7599, decode.acc_seg: 68.4612, aux.loss_seg: 0.4614, aux.acc_seg: 60.0451, loss: 1.2213
+2021-07-15 13:39:48,847 - mmseg - INFO - Iter [400/20000]	lr: 9.822e-03, eta: 4:20:44, time: 0.762, data_time: 0.005, memory: 20165, decode.loss_seg: 0.7546, decode.acc_seg: 68.8505, aux.loss_seg: 0.4671, aux.acc_seg: 60.0747, loss: 1.2217
+2021-07-15 13:40:27,619 - mmseg - INFO - Iter [450/20000]	lr: 9.800e-03, eta: 4:19:14, time: 0.775, data_time: 0.005, memory: 20165, decode.loss_seg: 0.7240, decode.acc_seg: 68.8859, aux.loss_seg: 0.4490, aux.acc_seg: 59.6412, loss: 1.1730
+2021-07-15 13:41:06,277 - mmseg - INFO - Iter [500/20000]	lr: 9.777e-03, eta: 4:17:51, time: 0.773, data_time: 0.005, memory: 20165, decode.loss_seg: 0.7117, decode.acc_seg: 68.8133, aux.loss_seg: 0.4472, aux.acc_seg: 59.8676, loss: 1.1589
+2021-07-15 13:41:44,468 - mmseg - INFO - Iter [550/20000]	lr: 9.755e-03, eta: 4:16:19, time: 0.764, data_time: 0.005, memory: 20165, decode.loss_seg: 0.6922, decode.acc_seg: 68.7560, aux.loss_seg: 0.4270, aux.acc_seg: 60.3510, loss: 1.1192
+2021-07-15 13:42:23,384 - mmseg - INFO - Iter [600/20000]	lr: 9.733e-03, eta: 4:15:19, time: 0.778, data_time: 0.005, memory: 20165, decode.loss_seg: 0.6480, decode.acc_seg: 70.7668, aux.loss_seg: 0.4129, aux.acc_seg: 61.6925, loss: 1.0609
+2021-07-15 13:43:02,688 - mmseg - INFO - Iter [650/20000]	lr: 9.710e-03, eta: 4:14:34, time: 0.786, data_time: 0.005, memory: 20165, decode.loss_seg: 0.6538, decode.acc_seg: 70.3169, aux.loss_seg: 0.4179, aux.acc_seg: 61.5699, loss: 1.0717
+2021-07-15 13:43:49,989 - mmseg - INFO - Iter [700/20000]	lr: 9.688e-03, eta: 4:17:31, time: 0.946, data_time: 0.005, memory: 20165, decode.loss_seg: 0.6629, decode.acc_seg: 69.8066, aux.loss_seg: 0.4208, aux.acc_seg: 60.2974, loss: 1.0836
+2021-07-15 13:44:28,605 - mmseg - INFO - Iter [750/20000]	lr: 9.666e-03, eta: 4:16:15, time: 0.773, data_time: 0.005, memory: 20165, decode.loss_seg: 0.6738, decode.acc_seg: 69.6976, aux.loss_seg: 0.4236, aux.acc_seg: 60.7306, loss: 1.0975
+2021-07-15 13:45:07,371 - mmseg - INFO - Iter [800/20000]	lr: 9.643e-03, eta: 4:15:07, time: 0.775, data_time: 0.005, memory: 20165, decode.loss_seg: 0.6501, decode.acc_seg: 69.2776, aux.loss_seg: 0.4134, aux.acc_seg: 60.3448, loss: 1.0635
+2021-07-15 13:45:46,257 - mmseg - INFO - Iter [850/20000]	lr: 9.621e-03, eta: 4:14:05, time: 0.777, data_time: 0.005, memory: 20165, decode.loss_seg: 0.6473, decode.acc_seg: 70.1590, aux.loss_seg: 0.4059, aux.acc_seg: 61.4733, loss: 1.0532
+2021-07-15 13:46:25,129 - mmseg - INFO - Iter [900/20000]	lr: 9.599e-03, eta: 4:13:05, time: 0.778, data_time: 0.005, memory: 20165, decode.loss_seg: 0.5997, decode.acc_seg: 71.1975, aux.loss_seg: 0.3982, aux.acc_seg: 61.6019, loss: 0.9979
+2021-07-15 13:47:03,987 - mmseg - INFO - Iter [950/20000]	lr: 9.576e-03, eta: 4:12:07, time: 0.777, data_time: 0.005, memory: 20165, decode.loss_seg: 0.6271, decode.acc_seg: 69.7198, aux.loss_seg: 0.4008, aux.acc_seg: 60.6373, loss: 1.0279
+2021-07-15 13:47:42,712 - mmseg - INFO - Exp name: fcn_r50-d8_512x512_20k_voc12aug.py
+2021-07-15 13:47:42,712 - mmseg - INFO - Iter [1000/20000]	lr: 9.554e-03, eta: 4:11:09, time: 0.775, data_time: 0.006, memory: 20165, decode.loss_seg: 0.6244, decode.acc_seg: 70.2361, aux.loss_seg: 0.4011, aux.acc_seg: 60.9233, loss: 1.0255
+2021-07-15 13:48:21,326 - mmseg - INFO - Iter [1050/20000]	lr: 9.531e-03, eta: 4:10:10, time: 0.772, data_time: 0.005, memory: 20165, decode.loss_seg: 0.6095, decode.acc_seg: 71.1938, aux.loss_seg: 0.3948, aux.acc_seg: 61.7122, loss: 1.0043
+2021-07-15 13:48:59,815 - mmseg - INFO - Iter [1100/20000]	lr: 9.509e-03, eta: 4:09:12, time: 0.770, data_time: 0.005, memory: 20165, decode.loss_seg: 0.6164, decode.acc_seg: 70.3317, aux.loss_seg: 0.3954, aux.acc_seg: 61.0660, loss: 1.0118
+2021-07-15 13:49:38,510 - mmseg - INFO - Iter [1150/20000]	lr: 9.487e-03, eta: 4:08:18, time: 0.774, data_time: 0.005, memory: 20165, decode.loss_seg: 0.6487, decode.acc_seg: 70.3551, aux.loss_seg: 0.4100, aux.acc_seg: 61.5003, loss: 1.0587
+2021-07-15 13:50:17,318 - mmseg - INFO - Iter [1200/20000]	lr: 9.464e-03, eta: 4:07:28, time: 0.776, data_time: 0.005, memory: 20165, decode.loss_seg: 0.5949, decode.acc_seg: 70.4703, aux.loss_seg: 0.3876, aux.acc_seg: 61.3313, loss: 0.9825
+2021-07-15 13:50:55,555 - mmseg - INFO - Iter [1250/20000]	lr: 9.442e-03, eta: 4:06:29, time: 0.764, data_time: 0.005, memory: 20165, decode.loss_seg: 0.6075, decode.acc_seg: 70.8525, aux.loss_seg: 0.3833, aux.acc_seg: 61.7554, loss: 0.9908
+--- Logging error ---
+Traceback (most recent call last):
+  File "/home/eegroup/eefrank/anaconda3/envs/b06901053_mmseg/lib/python3.7/logging/__init__.py", line 1029, in emit
+    self.flush()
+  File "/home/eegroup/eefrank/anaconda3/envs/b06901053_mmseg/lib/python3.7/logging/__init__.py", line 1009, in flush
+    self.stream.flush()
+OSError: [Errno 5] Input/output error
+Call stack:
+  File "./tools/train.py", line 163, in <module>
+    main()
+  File "./tools/train.py", line 159, in main
+    meta=meta)
+  File "/home/eegroup/eefrank/b06901053/ML-SSL/Baseline/Segmentation/mmsegmentation/mmseg/apis/train.py", line 116, in train_segmentor
+    runner.run(data_loaders, cfg.workflow)
+  File "/home/eegroup/eefrank/anaconda3/envs/b06901053_mmseg/lib/python3.7/site-packages/mmcv/runner/iter_based_runner.py", line 130, in run
+    iter_runner(iter_loaders[i], **kwargs)
+  File "/home/eegroup/eefrank/anaconda3/envs/b06901053_mmseg/lib/python3.7/site-packages/mmcv/runner/iter_based_runner.py", line 66, in train
+    self.call_hook('after_train_iter')
+  File "/home/eegroup/eefrank/anaconda3/envs/b06901053_mmseg/lib/python3.7/site-packages/mmcv/runner/base_runner.py", line 307, in call_hook
+    getattr(hook, fn_name)(self)
+  File "/home/eegroup/eefrank/anaconda3/envs/b06901053_mmseg/lib/python3.7/site-packages/mmcv/runner/hooks/logger/base.py", line 53, in after_train_iter
+    self.log(runner)
+  File "/home/eegroup/eefrank/anaconda3/envs/b06901053_mmseg/lib/python3.7/site-packages/mmcv/runner/hooks/logger/text.py", line 181, in log
+    self._log_info(log_dict, runner)
+  File "/home/eegroup/eefrank/anaconda3/envs/b06901053_mmseg/lib/python3.7/site-packages/mmcv/runner/hooks/logger/text.py", line 122, in _log_info
+    runner.logger.info(log_str)
+Message: 'Iter [1250/20000]\tlr: 9.442e-03, eta: 4:06:29, time: 0.764, data_time: 0.005, memory: 20165, decode.loss_seg: 0.6075, decode.acc_seg: 70.8525, aux.loss_seg: 0.3833, aux.acc_seg: 61.7554, loss: 0.9908'
+Arguments: ()
+OSError: [Errno 5] Input/output error
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "./tools/train.py", line 163, in <module>
+    main()
+  File "./tools/train.py", line 159, in main
+    meta=meta)
+  File "/home/eegroup/eefrank/b06901053/ML-SSL/Baseline/Segmentation/mmsegmentation/mmseg/apis/train.py", line 116, in train_segmentor
+    runner.run(data_loaders, cfg.workflow)
+  File "/home/eegroup/eefrank/anaconda3/envs/b06901053_mmseg/lib/python3.7/site-packages/mmcv/runner/iter_based_runner.py", line 130, in run
+    iter_runner(iter_loaders[i], **kwargs)
+  File "/home/eegroup/eefrank/anaconda3/envs/b06901053_mmseg/lib/python3.7/site-packages/mmcv/runner/iter_based_runner.py", line 66, in train
+    self.call_hook('after_train_iter')
+  File "/home/eegroup/eefrank/anaconda3/envs/b06901053_mmseg/lib/python3.7/site-packages/mmcv/runner/base_runner.py", line 307, in call_hook
+    getattr(hook, fn_name)(self)
+  File "/home/eegroup/eefrank/anaconda3/envs/b06901053_mmseg/lib/python3.7/site-packages/mmcv/runner/hooks/logger/base.py", line 53, in after_train_iter
+    self.log(runner)
+  File "/home/eegroup/eefrank/anaconda3/envs/b06901053_mmseg/lib/python3.7/site-packages/mmcv/runner/hooks/logger/text.py", line 182, in log
+    self._dump_log(log_dict, runner)
+  File "/home/eegroup/eefrank/anaconda3/envs/b06901053_mmseg/lib/python3.7/site-packages/mmcv/runner/hooks/logger/text.py", line 133, in _dump_log
+    f.write('\n')
+OSError: [Errno 5] Input/output error
+Traceback (most recent call last):
+  File "/home/eegroup/eefrank/anaconda3/envs/b06901053_mmseg/lib/python3.7/runpy.py", line 193, in _run_module_as_main
+    "__main__", mod_spec)
+  File "/home/eegroup/eefrank/anaconda3/envs/b06901053_mmseg/lib/python3.7/runpy.py", line 85, in _run_code
+    exec(code, run_globals)
+  File "/home/eegroup/eefrank/anaconda3/envs/b06901053_mmseg/lib/python3.7/site-packages/torch/distributed/launch.py", line 261, in <module>
+    main()
+  File "/home/eegroup/eefrank/anaconda3/envs/b06901053_mmseg/lib/python3.7/site-packages/torch/distributed/launch.py", line 257, in main
+    cmd=cmd)
+subprocess.CalledProcessError: Command '['/home/eegroup/eefrank/anaconda3/envs/b06901053_mmseg/bin/python', '-u', './tools/train.py', '--local_rank=3', 'configs/densecl/fcn_r50-d8_512x512_20k_voc12aug.py', '--launcher', 'pytorch', '--work-dir', 'logs/swav/swav_noMC']' returned non-zero exit status 1.
