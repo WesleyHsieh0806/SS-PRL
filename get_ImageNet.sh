@@ -8,5 +8,12 @@ if [ "$DATA" == "" ]; then
 fi
 # -P DIR --> save files in DIR
 mkdir $DATA
-wget https://image-net.org/data/ILSVRC/2012/ILSVRC2012_img_train_t3.tar -P $DATA
-tar -xf $DATA/ILSVRC2012_img_train_t3.tar -C $DATA
+wget https://image-net.org/data/ILSVRC/2012/ILSVRC2012_img_train.tar -P $DATA
+wget https://image-net.org/data/ILSVRC/2012/ILSVRC2012_img_val.tar -P $DATA
+wget https://image-net.org/data/ILSVRC/2012/ILSVRC2012_devkit_t12.tar.gz -P $DATA
+
+mkdir $DATA/train
+tar -xf $DATA/ILSVRC2012_img_train.tar -C $DATA/train
+
+mkdir $DATA/val
+tar -xf $DATA/ILSVRC2012_img_val.tar -C $DATA/val
