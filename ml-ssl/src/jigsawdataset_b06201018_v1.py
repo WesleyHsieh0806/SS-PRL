@@ -23,6 +23,7 @@ class JigsawDataset(datasets.ImageFolder):
         nmb_crops,
         min_scale_crops,
         max_scale_crops,
+        num_patch_per_side=3,
         size_dataset=-1,
         return_index=False,
     ):
@@ -51,16 +52,25 @@ class JigsawDataset(datasets.ImageFolder):
         ] * nmb_crops[0])
         self.global_trans = trans
 
-        self.local_trans = JigsawCrop(num_copies=nmb_crops[0])
+        self.local_trans = JigsawCrop(
+            num_copies=nmb_crops[0],
+            num_patch_per_side=num_patch_per_side
+        )
 
     def __getitem__(self, index):
+        """
+        Return a list of tensors of shape (bs, ch, h, w).
+        By default the h & w are 224 for global crops, and 64 for local crops.
+        Tensors in the list follow the order of
+        [gbl_0, gbl_1, lcl_00, ..., lcl_08, lcl_10, ..., lcl_18].
+        """
         path, _ = self.samples[index]
         image = self.loader(path)
         global_crops = list(map(lambda trans: trans(image), self.global_trans))
         local_crops = self.local_trans(image)
         if self.return_index:
             return index, global_crops, local_crops
-        return  global_crops, local_crops
+        return  global_crops + local_crops
 
 
 class PILRandomGaussianBlur(object):
@@ -97,9 +107,14 @@ def get_color_distortion(s=1.0):
 
 
 class JigsawCrop(object):
-    def __init__(self, num_copies=1):
+    """
+    Apply "jigsaw augmentation" to the PIL image.
+    This transform was used in DetCo - https://arxiv.org/abs/2102.04803
+    """
+    def __init__(self, num_copies=1, num_patch_per_side=3):
         self.num_copies = num_copies
-        self.crop_areas = [(i*85, j*85, (i+1)*85, (j+1)*85) for j in range(3) for i in range(3)]
+        num_p = num_patch_per_side
+        self.crop_areas = [(i*85, j*85, (i+1)*85, (j+1)*85) for j in range(num_p) for i in range(num_p)]
         
         self.randomresizedcrop = transforms.RandomResizedCrop(255, scale=(0.6, 1.0))
         
