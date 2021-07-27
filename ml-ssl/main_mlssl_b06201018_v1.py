@@ -342,10 +342,11 @@ def train(train_loader, model, optimizer, epoch, lr_schedule, gbl_queue, lcl_que
 
         # ============ local swav loss ... ============
         n_patch = lcl_out // gbl_out
+        lcl_bs = bs * n_patch
         lcl_loss = 0
         for i, crop_id in enumerate(args.crops_for_assign):
             with torch.no_grad():
-                out = lcl_out[bs * n_patch * crop_id: bs * n_patch * (crop_id + 1)].detach()
+                out = lcl_out[lcl_bs * crop_id: lcl_bs * (crop_id + 1)].detach()
 
                 # time to use the queue
                 if lcl_queue is not None:
@@ -356,25 +357,18 @@ def train(train_loader, model, optimizer, epoch, lr_schedule, gbl_queue, lcl_que
                             model.module.lcl_prototypes.weight.t()
                         ), out))
                     # fill the queue
-                    lcl_queue[i, bs:] = lcl_queue[i, :-bs].clone()
-                    lcl_queue[i, :bs] = lcl_emb[crop_id * bs: (crop_id + 1) * bs]
+                    lcl_queue[i, lcl_bs:] = lcl_queue[i, :-lcl_bs].clone()
+                    lcl_queue[i, :lcl_bs] = lcl_emb[crop_id * lcl_bs: (crop_id + 1) * lcl_bs]
 
                 # get assignments
-                q = distributed_sinkhorn(out)[-bs:]
-
-            # cluster assignment prediction
-            subloss = 0
-            for v in np.delete(np.arange(np.sum(args.nmb_crops)), crop_id):
-                x = gbl_out[bs * v: bs * (v + 1)] / args.temperature
-                subloss -= torch.mean(torch.sum(q * F.log_softmax(x, dim=1), dim=1))
-            gbl_loss += subloss / (np.sum(args.nmb_crops) - 1)
+                q = distributed_sinkhorn(out)[-lcl_bs:]
 
             # cluster assignment prediction
             for patch_id in range(n_patch):
                 subloss = 0
                 for v in patch_id + n_patch * np.delete(np.arange(np.sum(args.nmb_crops)), crop_id):
                     x = lcl_out[bs * v: bs * (v + 1)] / args.temperature
-                    subloss -= torch.mean(torch.sum(q * F.log_softmax(x, dim=1), dim=1))
+                    subloss -= torch.mean(torch.sum(q[patch_id * bs: (patch_id + 1) * bs] * F.log_softmax(x, dim=1), dim=1))
                 lcl_loss += subloss / (np.sum(args.nmb_crops) - 1)
             lcl_loss /= n_patch
         lcl_loss /= len(args.crops_for_assign)
