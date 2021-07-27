@@ -26,6 +26,11 @@ class MultiCropDataset(datasets.ImageFolder):
         size_dataset=-1,
         return_index=False,
     ):
+        # The ImageFolder Dataset reads from the data path and deals with the index of each sample automatically
+        # The folder has to be structured like
+        # root - dog - 1.png
+        #              2.png
+        # root - cat - 1.png
         super(MultiCropDataset, self).__init__(data_path)
         assert len(size_crops) == len(nmb_crops)
         assert len(min_scale_crops) == len(nmb_crops)
@@ -52,7 +57,7 @@ class MultiCropDataset(datasets.ImageFolder):
             ] * nmb_crops[i])
         self.trans = trans
 
-    def __getitem__(self, index):
+    def __getitem__(self, index) -> list:
         path, _ = self.samples[index]
         image = self.loader(path)
         multi_crops = list(map(lambda trans: trans(image), self.trans))

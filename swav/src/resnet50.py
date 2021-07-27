@@ -47,9 +47,11 @@ class BasicBlock(nn.Module):
         if norm_layer is None:
             norm_layer = nn.BatchNorm2d
         if groups != 1 or base_width != 64:
-            raise ValueError("BasicBlock only supports groups=1 and base_width=64")
+            raise ValueError(
+                "BasicBlock only supports groups=1 and base_width=64")
         if dilation > 1:
-            raise NotImplementedError("Dilation > 1 not supported in BasicBlock")
+            raise NotImplementedError(
+                "Dilation > 1 not supported in BasicBlock")
         # Both self.conv1 and self.downsample layers downsample the input when stride != 1
         self.conv1 = conv3x3(inplanes, planes, stride)
         self.bn1 = norm_layer(planes)
@@ -165,7 +167,8 @@ class ResNet(nn.Module):
         if len(replace_stride_with_dilation) != 3:
             raise ValueError(
                 "replace_stride_with_dilation should be None "
-                "or a 3-element tuple, got {}".format(replace_stride_with_dilation)
+                "or a 3-element tuple, got {}".format(
+                    replace_stride_with_dilation)
             )
         self.groups = groups
         self.base_width = width_per_group
@@ -200,7 +203,8 @@ class ResNet(nn.Module):
         if output_dim == 0:
             self.projection_head = None
         elif hidden_mlp == 0:
-            self.projection_head = nn.Linear(num_out_filters * block.expansion, output_dim)
+            self.projection_head = nn.Linear(
+                num_out_filters * block.expansion, output_dim)
         else:
             self.projection_head = nn.Sequential(
                 nn.Linear(num_out_filters * block.expansion, hidden_mlp),
@@ -218,7 +222,8 @@ class ResNet(nn.Module):
 
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
-                nn.init.kaiming_normal_(m.weight, mode="fan_out", nonlinearity="relu")
+                nn.init.kaiming_normal_(
+                    m.weight, mode="fan_out", nonlinearity="relu")
             elif isinstance(m, (nn.BatchNorm2d, nn.GroupNorm)):
                 nn.init.constant_(m.weight, 1)
                 nn.init.constant_(m.bias, 0)
@@ -306,20 +311,28 @@ class ResNet(nn.Module):
         return x
 
     def forward(self, inputs):
+        # Dataset returns list(Sequence), so the inputs produced by Dataloader are also lists
+        # Ex:[Tensor of shape(Batch,3,224,224), (Batch,3,224,224), (Batch,3,96,96), .....]
         if not isinstance(inputs, list):
             inputs = [inputs]
+
+        # [224,224,96,96,96,96,96,96] ->[2,6](nof of consecutive unique values) ->[2,8](cumulative sum)
         idx_crops = torch.cumsum(torch.unique_consecutive(
             torch.tensor([inp.shape[-1] for inp in inputs]),
             return_counts=True,
         )[1], 0)
         start_idx = 0
         for end_idx in idx_crops:
-            _out = self.forward_backbone(torch.cat(inputs[start_idx: end_idx]).cuda(non_blocking=True))
+            # torch.cat( [(Batch,3,224,224), (Batch,3,224,224)] ) -> Tensor(Batch*2, 3, 224, 224)
+            _out = self.forward_backbone(
+                torch.cat(inputs[start_idx: end_idx]).cuda(non_blocking=True))
+            # _out corresponds to f in the paper
             if start_idx == 0:
                 output = _out
             else:
                 output = torch.cat((output, _out))
             start_idx = end_idx
+        # output include z and p
         return self.forward_head(output)
 
 
@@ -328,7 +341,8 @@ class MultiPrototypes(nn.Module):
         super(MultiPrototypes, self).__init__()
         self.nmb_heads = len(nmb_prototypes)
         for i, k in enumerate(nmb_prototypes):
-            self.add_module("prototypes" + str(i), nn.Linear(output_dim, k, bias=False))
+            self.add_module("prototypes" + str(i),
+                            nn.Linear(output_dim, k, bias=False))
 
     def forward(self, x):
         out = []

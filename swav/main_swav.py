@@ -78,12 +78,15 @@ parser.add_argument("--epochs", default=100, type=int,
                     help="number of total epochs to run")
 parser.add_argument("--batch_size", default=64, type=int,
                     help="batch size per gpu, i.e. how many unique instances per gpu")
-parser.add_argument("--base_lr", default=4.8, type=float, help="base learning rate")
-parser.add_argument("--final_lr", type=float, default=0, help="final learning rate")
+parser.add_argument("--base_lr", default=4.8, type=float,
+                    help="base learning rate")
+parser.add_argument("--final_lr", type=float, default=0,
+                    help="final learning rate")
 parser.add_argument("--freeze_prototypes_niters", default=313, type=int,
                     help="freeze the prototypes during this many iterations from the start")
 parser.add_argument("--wd", default=1e-6, type=float, help="weight decay")
-parser.add_argument("--warmup_epochs", default=10, type=int, help="number of warmup epochs")
+parser.add_argument("--warmup_epochs", default=10,
+                    type=int, help="number of warmup epochs")
 parser.add_argument("--start_warmup", default=0, type=float,
                     help="initial warmup learning rate")
 
@@ -103,7 +106,8 @@ parser.add_argument("--local_rank", default=0, type=int,
 #########################
 #### other parameters ###
 #########################
-parser.add_argument("--arch", default="resnet50", type=str, help="convnet architecture")
+parser.add_argument("--arch", default="resnet50",
+                    type=str, help="convnet architecture")
 parser.add_argument("--hidden_mlp", default=2048, type=int,
                     help="hidden layer dimension in projection head")
 parser.add_argument("--workers", default=10, type=int,
@@ -112,7 +116,8 @@ parser.add_argument("--checkpoint_freq", type=int, default=25,
                     help="Save the model periodically")
 parser.add_argument("--use_fp16", type=bool_flag, default=True,
                     help="whether to train with mixed precision or not")
-parser.add_argument("--sync_bn", type=str, default="pytorch", help="synchronize bn")
+parser.add_argument("--sync_bn", type=str,
+                    default="pytorch", help="synchronize bn")
 parser.add_argument("--syncbn_process_group_size", type=int, default=8, help=""" see
                     https://github.com/NVIDIA/apex/blob/master/apex/parallel/__init__.py#L58-L67""")
 parser.add_argument("--dump_path", type=str, default=".",
@@ -125,6 +130,7 @@ def main():
     args = parser.parse_args()
     init_distributed_mode(args)
     fix_random_seeds(args.seed)
+    # logger: such as log files and consoles training_stats: save logs into pickle files
     logger, training_stats = initialize_exp(args, "epoch", "loss")
 
     # build data
@@ -144,9 +150,11 @@ def main():
         pin_memory=True,
         drop_last=True
     )
-    logger.info("Building data done with {} images loaded.".format(len(train_dataset)))
+    logger.info("Building data done with {} images loaded.".format(
+        len(train_dataset)))
 
     # build model
+    # .__dict__ returns the dictionary of this package, all the functions/classes can be called by .__dict__[func name]
     model = resnet_models.__dict__[args.arch](
         normalize=True,
         hidden_mlp=args.hidden_mlp,
@@ -159,8 +167,10 @@ def main():
     elif args.sync_bn == "apex":
         # with apex syncbn we sync bn per group because it speeds up computation
         # compared to global syncbn
-        process_group = apex.parallel.create_syncbn_process_group(args.syncbn_process_group_size)
-        model = apex.parallel.convert_syncbn_model(model, process_group=process_group)
+        process_group = apex.parallel.create_syncbn_process_group(
+            args.syncbn_process_group_size)
+        model = apex.parallel.convert_syncbn_model(
+            model, process_group=process_group)
     # copy model to GPU
     model = model.cuda()
     if args.rank == 0:
@@ -175,16 +185,18 @@ def main():
         weight_decay=args.wd,
     )
     optimizer = LARC(optimizer=optimizer, trust_coefficient=0.001, clip=False)
-    warmup_lr_schedule = np.linspace(args.start_warmup, args.base_lr, len(train_loader) * args.warmup_epochs)
+    warmup_lr_schedule = np.linspace(
+        args.start_warmup, args.base_lr, len(train_loader) * args.warmup_epochs)
     iters = np.arange(len(train_loader) * (args.epochs - args.warmup_epochs))
-    cosine_lr_schedule = np.array([args.final_lr + 0.5 * (args.base_lr - args.final_lr) * (1 + \
-                         math.cos(math.pi * t / (len(train_loader) * (args.epochs - args.warmup_epochs)))) for t in iters])
+    cosine_lr_schedule = np.array([args.final_lr + 0.5 * (args.base_lr - args.final_lr) * (1 +
+                                                                                           math.cos(math.pi * t / (len(train_loader) * (args.epochs - args.warmup_epochs)))) for t in iters])
     lr_schedule = np.concatenate((warmup_lr_schedule, cosine_lr_schedule))
     logger.info("Building optimizer done.")
 
     # init mixed precision
     if args.use_fp16:
-        model, optimizer = apex.amp.initialize(model, optimizer, opt_level="O1")
+        model, optimizer = apex.amp.initialize(
+            model, optimizer, opt_level="O1")
         logger.info("Initializing mixed precision done.")
 
     # wrap model
@@ -206,11 +218,13 @@ def main():
 
     # build the queue
     queue = None
-    queue_path = os.path.join(args.dump_path, "queue" + str(args.rank) + ".pth")
+    queue_path = os.path.join(
+        args.dump_path, "queue" + str(args.rank) + ".pth")
     if os.path.isfile(queue_path):
         queue = torch.load(queue_path)["queue"]
     # the queue needs to be divisible by the batch size
-    args.queue_length -= args.queue_length % (args.batch_size * args.world_size)
+    args.queue_length -= args.queue_length % (
+        args.batch_size * args.world_size)
 
     cudnn.benchmark = True
 
@@ -231,7 +245,9 @@ def main():
             ).cuda()
 
         # train the network
-        scores, queue = train(train_loader, model, optimizer, epoch, lr_schedule, queue)
+        scores, queue = train(train_loader, model,
+                              optimizer, epoch, lr_schedule, queue)
+        # the scores include epoch and loss
         training_stats.update(scores)
 
         # save checkpoints
@@ -250,7 +266,8 @@ def main():
             if epoch % args.checkpoint_freq == 0 or epoch == args.epochs - 1:
                 shutil.copyfile(
                     os.path.join(args.dump_path, "checkpoint.pth.tar"),
-                    os.path.join(args.dump_checkpoints, "ckp-" + str(epoch) + ".pth"),
+                    os.path.join(args.dump_checkpoints,
+                                 "ckp-" + str(epoch) + ".pth"),
                 )
         if queue is not None:
             torch.save({"queue": queue}, queue_path)
@@ -310,7 +327,8 @@ def train(train_loader, model, optimizer, epoch, lr_schedule, queue):
             subloss = 0
             for v in np.delete(np.arange(np.sum(args.nmb_crops)), crop_id):
                 x = output[bs * v: bs * (v + 1)] / args.temperature
-                subloss -= torch.mean(torch.sum(q * F.log_softmax(x, dim=1), dim=1))
+                subloss -= torch.mean(torch.sum(q *
+                                                F.log_softmax(x, dim=1), dim=1))
             loss += subloss / (np.sum(args.nmb_crops) - 1)
         loss /= len(args.crops_for_assign)
 
@@ -332,7 +350,7 @@ def train(train_loader, model, optimizer, epoch, lr_schedule, queue):
         losses.update(loss.item(), inputs[0].size(0))
         batch_time.update(time.time() - end)
         end = time.time()
-        if args.rank ==0 and it % 50 == 0:
+        if args.rank == 0 and it % 50 == 0:
             logger.info(
                 "Epoch: [{0}][{1}]\t"
                 "Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t"
@@ -352,9 +370,10 @@ def train(train_loader, model, optimizer, epoch, lr_schedule, queue):
 
 @torch.no_grad()
 def distributed_sinkhorn(out):
-    Q = torch.exp(out / args.epsilon).t() # Q is K-by-B for consistency with notations from our paper
-    B = Q.shape[1] * args.world_size # number of samples to assign
-    K = Q.shape[0] # how many prototypes
+    # Q is K-by-B for consistency with notations from our paper
+    Q = torch.exp(out / args.epsilon).t()
+    B = Q.shape[1] * args.world_size  # number of samples to assign
+    K = Q.shape[0]  # how many prototypes
 
     # make the matrix sums to 1
     sum_Q = torch.sum(Q)
@@ -372,7 +391,7 @@ def distributed_sinkhorn(out):
         Q /= torch.sum(Q, dim=0, keepdim=True)
         Q /= B
 
-    Q *= B # the colomns must sum to 1 so that Q is an assignment
+    Q *= B  # the colomns must sum to 1 so that Q is an assignment
     return Q.t()
 
 
