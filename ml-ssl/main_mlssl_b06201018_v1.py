@@ -306,28 +306,28 @@ def train(train_loader, model, optimizer, epoch, lr_schedule, gbl_queue, lcl_que
             model.module.lcl_prototypes.weight.copy_(w)
 
         # ============ multi-res forward passes ... ============
-        (gbl_emb, gbl_output), (lcl_emb, lcl_output) = model(inputs)
+        (gbl_emb, gbl_out), (lcl_emb, lcl_out) = model(inputs)
         gbl_emb = gbl_emb.detach()
         lcl_emb = lcl_emb.detach()
         bs = inputs[0].size(0)
 
-        # ============ swav loss ... ============
-        loss = 0
+        # ============ global swav loss ... ============
+        gbl_loss = 0
         for i, crop_id in enumerate(args.crops_for_assign):
             with torch.no_grad():
-                out = output[bs * crop_id: bs * (crop_id + 1)].detach()
+                out = gbl_out[bs * crop_id: bs * (crop_id + 1)].detach()
 
                 # time to use the queue
-                if queue is not None:
-                    if use_the_queue or not torch.all(queue[i, -1, :] == 0):
+                if gbl_queue is not None:
+                    if use_the_queue or not torch.all(gbl_queue[i, -1, :] == 0):
                         use_the_queue = True
                         out = torch.cat((torch.mm(
-                            queue[i],
-                            model.module.prototypes.weight.t()
+                            gbl_queue[i],
+                            model.module.gbl_prototypes.weight.t()
                         ), out))
                     # fill the queue
-                    queue[i, bs:] = queue[i, :-bs].clone()
-                    queue[i, :bs] = embedding[crop_id * bs: (crop_id + 1) * bs]
+                    gbl_queue[i, bs:] = gbl_queue[i, :-bs].clone()
+                    gbl_queue[i, :bs] = gbl_emb[crop_id * bs: (crop_id + 1) * bs]
 
                 # get assignments
                 q = distributed_sinkhorn(out)[-bs:]
@@ -335,10 +335,51 @@ def train(train_loader, model, optimizer, epoch, lr_schedule, gbl_queue, lcl_que
             # cluster assignment prediction
             subloss = 0
             for v in np.delete(np.arange(np.sum(args.nmb_crops)), crop_id):
-                x = output[bs * v: bs * (v + 1)] / args.temperature
+                x = gbl_out[bs * v: bs * (v + 1)] / args.temperature
                 subloss -= torch.mean(torch.sum(q * F.log_softmax(x, dim=1), dim=1))
-            loss += subloss / (np.sum(args.nmb_crops) - 1)
-        loss /= len(args.crops_for_assign)
+            gbl_loss += subloss / (np.sum(args.nmb_crops) - 1)
+        gbl_loss /= len(args.crops_for_assign)
+
+        # ============ local swav loss ... ============
+        n_patch = lcl_out // gbl_out
+        lcl_loss = 0
+        for i, crop_id in enumerate(args.crops_for_assign):
+            with torch.no_grad():
+                out = lcl_out[bs * n_patch * crop_id: bs * n_patch * (crop_id + 1)].detach()
+
+                # time to use the queue
+                if lcl_queue is not None:
+                    if use_the_queue or not torch.all(lcl_queue[i, -1, :] == 0):
+                        use_the_queue = True
+                        out = torch.cat((torch.mm(
+                            lcl_queue[i],
+                            model.module.lcl_prototypes.weight.t()
+                        ), out))
+                    # fill the queue
+                    lcl_queue[i, bs:] = lcl_queue[i, :-bs].clone()
+                    lcl_queue[i, :bs] = lcl_emb[crop_id * bs: (crop_id + 1) * bs]
+
+                # get assignments
+                q = distributed_sinkhorn(out)[-bs:]
+
+            # cluster assignment prediction
+            subloss = 0
+            for v in np.delete(np.arange(np.sum(args.nmb_crops)), crop_id):
+                x = gbl_out[bs * v: bs * (v + 1)] / args.temperature
+                subloss -= torch.mean(torch.sum(q * F.log_softmax(x, dim=1), dim=1))
+            gbl_loss += subloss / (np.sum(args.nmb_crops) - 1)
+
+            # cluster assignment prediction
+            for patch_id in range(n_patch):
+                subloss = 0
+                for v in patch_id + n_patch * np.delete(np.arange(np.sum(args.nmb_crops)), crop_id):
+                    x = lcl_out[bs * v: bs * (v + 1)] / args.temperature
+                    subloss -= torch.mean(torch.sum(q * F.log_softmax(x, dim=1), dim=1))
+                lcl_loss += subloss / (np.sum(args.nmb_crops) - 1)
+            lcl_loss /= n_patch
+        lcl_loss /= len(args.crops_for_assign)
+
+        loss = gbl_loss + lcl_loss
 
         # ============ backward and optim step ... ============
         optimizer.zero_grad()
