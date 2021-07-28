@@ -30,8 +30,8 @@ from src.utils import (
     AverageMeter,
     init_distributed_mode,
 )
-from src.multicropdataset import MultiCropDataset
-import src.resnet50 as resnet_models
+from src.jigsawdataset_b06201018_v1 import JigsawDataset
+import src.resnet50_b06201018_v1 as resnet_models
 
 logger = getLogger()
 
@@ -134,12 +134,13 @@ def main():
     logger, training_stats = initialize_exp(args, "epoch", "loss")
 
     # build data
-    train_dataset = MultiCropDataset(
+    train_dataset = JigsawDataset(
         args.data_path,
         args.size_crops,
         args.nmb_crops,
         args.min_scale_crops,
         args.max_scale_crops,
+        num_patch_per_side=args.nmb_patch_per_size
     )
     sampler = torch.utils.data.distributed.DistributedSampler(train_dataset)
     train_loader = torch.utils.data.DataLoader(
@@ -157,7 +158,8 @@ def main():
         normalize=True,
         hidden_mlp=args.hidden_mlp,
         output_dim=args.feat_dim,
-        nmb_prototypes=args.nmb_prototypes,
+        nmb_gbl_prototypes=args.nmb_gbl_prototypes,
+        nmb_lcl_prototypes=args.nmb_lcl_prototypes,
     )
     # synchronize batch norm layers
     if args.sync_bn == "pytorch":
