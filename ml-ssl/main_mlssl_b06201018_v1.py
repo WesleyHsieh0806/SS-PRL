@@ -284,6 +284,8 @@ def train(train_loader, model, optimizer, epoch, lr_schedule, gbl_queue, lcl_que
     batch_time = AverageMeter()
     data_time = AverageMeter()
     losses = AverageMeter()
+    gbl_losses = AverageMeter()
+    lcl_losses = AverageMeter()
 
     model.train()
     use_the_queue = False
@@ -393,6 +395,8 @@ def train(train_loader, model, optimizer, epoch, lr_schedule, gbl_queue, lcl_que
 
         # ============ misc ... ============
         losses.update(loss.item(), inputs[0].size(0))
+        gbl_losses.update(gbl_loss.item(), inputs[0].size(0))
+        lcl_losses.update(lcl_loss.item(), inputs[0].size(0))
         batch_time.update(time.time() - end)
         end = time.time()
         if args.rank ==0 and it % 50 == 0:
@@ -401,12 +405,16 @@ def train(train_loader, model, optimizer, epoch, lr_schedule, gbl_queue, lcl_que
                 "Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t"
                 "Data {data_time.val:.3f} ({data_time.avg:.3f})\t"
                 "Loss {loss.val:.4f} ({loss.avg:.4f})\t"
+                "GBL {gbl_loss.val:.4f} ({gbl_loss.avg:.4f})\t"
+                "LCL {lcl_loss.val:.4f} ({lcl_loss.avg:.4f})\t"
                 "Lr: {lr:.4f}".format(
                     epoch,
                     it,
                     batch_time=batch_time,
                     data_time=data_time,
                     loss=losses,
+                    gbl_loss=gbl_losses,
+                    lcl_loss=lcl_losses,
                     lr=optimizer.optim.param_groups[0]["lr"],
                 )
             )
