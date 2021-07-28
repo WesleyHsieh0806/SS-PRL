@@ -10,12 +10,12 @@ module load cuda/cuda-10.0/x86_64
 
 ###################### 2. Modify the data path
 DATASET_PATH="../data/train"
-EXPERIMENT_PATH="./experiments/MLSSL_v2"
+EXPERIMENT_PATH="./experiments/MLSSL_v2_200ep_bs512"
 mkdir -p $EXPERIMENT_PATH
 EPOCH=200
 BATCH_PERGPU=128
 
-python -m torch.distributed.launch --nproc_per_node=4 main_MLSSL.py \
+python -m torch.distributed.launch --nproc_per_node=4 --master_port 29501 main_MLSSL.py \
 --data_path $DATASET_PATH \
 --nmb_crops 2 6 \
 --nmb_loc_views 2 \
