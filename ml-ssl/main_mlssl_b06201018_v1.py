@@ -348,9 +348,10 @@ def train(train_loader, model, optimizer, epoch, lr_schedule, gbl_queue, lcl_que
         n_patch = lcl_out.size(0) // gbl_out.size(0)
         lcl_bs = bs * n_patch
         lcl_loss = 0
+        lcl_out = lcl_out.reshape(len(args.crops_for_assign), lcl_bs, -1)
         for i, crop_id in enumerate(args.crops_for_assign):
             with torch.no_grad():
-                out = lcl_out[lcl_bs * crop_id: lcl_bs * (crop_id + 1)].detach()
+                out = lcl_out[crop_id].detach()
 
                 # time to use the queue
                 if lcl_queue is not None:
@@ -368,13 +369,11 @@ def train(train_loader, model, optimizer, epoch, lr_schedule, gbl_queue, lcl_que
                 q = distributed_sinkhorn(out)[-lcl_bs:]
 
             # cluster assignment prediction
-            for patch_id in range(n_patch):
-                subloss = 0
-                for v in patch_id + n_patch * np.delete(np.arange(np.sum(args.nmb_crops)), crop_id):
-                    x = lcl_out[bs * v: bs * (v + 1)] / args.temperature
-                    subloss -= torch.mean(torch.sum(q[patch_id * bs: (patch_id + 1) * bs] * F.log_softmax(x, dim=1), dim=1))
-                lcl_loss += subloss / (np.sum(args.nmb_crops) - 1)
-            lcl_loss /= n_patch
+            subloss = 0
+            for v in np.delete(np.arange(np.sum(args.nmb_crops)), crop_id):
+                x = lcl_out[v] / args.temperature
+                subloss -= torch.mean(torch.sum(q * F.log_softmax(x, dim=1), dim=1))
+            lcl_loss += subloss / (np.sum(args.nmb_crops) - 1)
         lcl_loss /= len(args.crops_for_assign)
 
         loss = gbl_loss + lcl_loss
