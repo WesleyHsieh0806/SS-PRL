@@ -345,7 +345,7 @@ def train(train_loader, model, optimizer, epoch, lr_schedule, gbl_queue, lcl_que
         gbl_loss /= len(args.crops_for_assign)
 
         # ============ local swav loss ... ============
-        n_patch = lcl_out // gbl_out
+        n_patch = lcl_out.size(0) // gbl_out.size(0)
         lcl_bs = bs * n_patch
         lcl_loss = 0
         for i, crop_id in enumerate(args.crops_for_assign):
