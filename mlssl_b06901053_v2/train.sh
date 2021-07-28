@@ -6,7 +6,7 @@
 ############### 1. modify the name of vir-env
 source activate b06901053_swav
 cd $PBS_O_WORKDIR
-module load cuda/cuda-9.2/x86_64
+module load cuda/cuda-10.0/x86_64
 
 ###################### 2. Modify the data path
 DATASET_PATH="../data/train"
