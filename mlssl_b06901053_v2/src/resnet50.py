@@ -5,6 +5,7 @@
 # LICENSE file in the root directory of this source tree.
 #
 
+import ntpath
 import torch
 import torch.nn as nn
 
@@ -148,9 +149,12 @@ class ResNet(nn.Module):
             output_dim=0,
             hidden_mlp=0,
             nmb_prototypes=0,
+            nmb_local_ptypes=0,
+            npatch=0,
             eval_mode=False,
     ):
         super(ResNet, self).__init__()
+
         if norm_layer is None:
             norm_layer = nn.BatchNorm2d
         self._norm_layer = norm_layer
@@ -199,7 +203,10 @@ class ResNet(nn.Module):
         # normalize output features
         self.l2norm = normalize
 
-        # projection head
+        #############
+        # Projection head
+        ############
+        # Global projection head
         if output_dim == 0:
             self.projection_head = None
         elif hidden_mlp == 0:
@@ -212,13 +219,42 @@ class ResNet(nn.Module):
                 nn.ReLU(inplace=True),
                 nn.Linear(hidden_mlp, output_dim),
             )
+        # Local projection head
+        if output_dim == 0:
+            self.l_pro_head = None
+        elif hidden_mlp == 0:
+            self.l_pro_head = nn.Linear(
+                num_out_filters * block.expansion, output_dim)
+        else:
+            self.l_pro_head = nn.Sequential(
+                nn.Linear(num_out_filters * block.expansion, hidden_mlp),
+                nn.BatchNorm1d(hidden_mlp),
+                nn.ReLU(inplace=True),
+                nn.Linear(hidden_mlp, output_dim),
+            )
 
+        ###########
+        # Construct prototype layers
+        ##########
         # prototype layer
         self.prototypes = None
         if isinstance(nmb_prototypes, list):
             self.prototypes = MultiPrototypes(output_dim, nmb_prototypes)
         elif nmb_prototypes > 0:
             self.prototypes = nn.Linear(output_dim, nmb_prototypes, bias=False)
+
+        # Local prototype layers
+        self.local_ptypes = None
+        if isinstance(nmb_local_ptypes, list):
+            self.local_ptypes = MultiPrototypes(output_dim, nmb_local_ptypes)
+        elif nmb_local_ptypes > 0:
+            self.local_ptypes = nn.Linear(
+                output_dim, nmb_local_ptypes, bias=False)
+        # Local2 Global prototype layer
+        self.l2g_ptypes = None
+        if (self.local_ptypes is not None) and (self.prototypes is not None):
+            self.l2g_ptypes = nn.Linear(
+                nmb_local_ptypes*npatch, nmb_prototypes, bias=False)
 
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
@@ -237,6 +273,21 @@ class ResNet(nn.Module):
                     nn.init.constant_(m.bn3.weight, 0)
                 elif isinstance(m, BasicBlock):
                     nn.init.constant_(m.bn2.weight, 0)
+
+    def ptypes_normalize(self):
+        with torch.no_grad():
+            if self.prototypes is not None:
+                w = self.prototypes.weight.data.clone()
+                w = nn.functional.normalize(w, dim=1, p=2)
+                self.prototypes.weight.copy_(w)
+            if self.local_ptypes is not None:
+                loc_w = self.local_ptypes.weight.data.clone()
+                loc_w = nn.functional.normalize(loc_w, dim=1, p=2)
+                self.local_ptypes.weight.copy_(loc_w)
+            if self.l2g_ptypes is not None:
+                lg2_w = self.l2g_ptypes.weight.data.clone()
+                lg2_w = nn.functional.normalize(lg2_w, dim=1, p=2)
+                self.l2g_ptypes.weight.copy_(lg2_w)
 
     def _make_layer(self, block, planes, blocks, stride=1, dilate=False):
         norm_layer = self._norm_layer
@@ -310,30 +361,56 @@ class ResNet(nn.Module):
             return x, self.prototypes(x)
         return x
 
+    def local_forward_head(self, x):
+        if self.l_pro_head is not None:
+            x = self.l_pro_head(x)
+
+        if self.l2norm:
+            x = nn.functional.normalize(x, dim=1, p=2)
+
+        if self.local_ptypes is not None:
+            return x, self.local_ptypes(x)
+        return x
+
+    def forward_l2g(self, loc_cat_logits):
+        if self.l2norm:
+            loc_cat_logits = nn.functional.normalize(
+                loc_cat_logits, dim=1, p=2)
+        return self.l2g_ptypes(loc_cat_logits)
+
     def forward(self, inputs):
         # Dataset returns list(Sequence), so the inputs produced by Dataloader are also lists
         # Ex:[Tensor of shape(Batch,3,224,224), (Batch,3,224,224), (Batch,3,96,96), .....]
         if not isinstance(inputs, list):
             inputs = [inputs]
 
-        # [224,224,96,96,96,96,96,96] ->[2,6](nof of consecutive unique values) ->[2,8](cumulative sum)
+        # [224,224,96,96,96,96,96,96,65,....,65] ->[2,6,18](nof of consecutive unique values) ->[2,8,26](cumulative sum)
         idx_crops = torch.cumsum(torch.unique_consecutive(
             torch.tensor([inp.shape[-1] for inp in inputs]),
             return_counts=True,
         )[1], 0)
         start_idx = 0
+        bs = inputs[0].shape[0]  # batch size
+
+        ############
+        # Obtain f by Encoder
+        ############
         for end_idx in idx_crops:
             # torch.cat( [(Batch,3,224,224), (Batch,3,224,224)] ) -> Tensor(Batch*2, 3, 224, 224)
             _out = self.forward_backbone(
                 torch.cat(inputs[start_idx: end_idx]).cuda(non_blocking=True))
             # _out corresponds to f in the paper
             if start_idx == 0:
-                output = _out
+                f = _out
             else:
-                output = torch.cat((output, _out))
+                f = torch.cat((f, _out))
             start_idx = end_idx
-        # output include z and p
-        return self.forward_head(output)
+        # Partition apart the global and local f
+        global_f = f[:bs*idx_crops[-2]]
+        local_f = f[bs*idx_crops[-2]:]
+
+        # 3. Return (global_z,global_p), (local_z, local_p) respectively
+        return self.forward_head(global_f), self.local_forward_head(local_f)
 
 
 class MultiPrototypes(nn.Module):

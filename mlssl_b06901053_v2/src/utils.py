@@ -81,7 +81,8 @@ def initialize_exp(params, *args, dump_params=True):
 
     # dump parameters
     if dump_params:
-        pickle.dump(params, open(os.path.join(params.dump_path, "params.pkl"), "wb"))
+        pickle.dump(params, open(os.path.join(
+            params.dump_path, "params.pkl"), "wb"))
 
     # create repo to store checkpoints
     params.dump_checkpoints = os.path.join(params.dump_path, "checkpoints")
@@ -90,7 +91,8 @@ def initialize_exp(params, *args, dump_params=True):
 
     # create a panda object to log loss and acc
     training_stats = PD_Stats(
-        os.path.join(params.dump_path, "stats" + str(params.rank) + ".pkl"), args
+        os.path.join(params.dump_path, "stats" +
+                     str(params.rank) + ".pkl"), args
     )
 
     # create a logger
@@ -99,7 +101,8 @@ def initialize_exp(params, *args, dump_params=True):
     )
     logger.info("============ Initialized logger ============")
     logger.info(
-        "\n".join("%s: %s" % (k, str(v)) for k, v in sorted(dict(vars(params)).items()))
+        "\n".join("%s: %s" % (k, str(v))
+                  for k, v in sorted(dict(vars(params)).items()))
     )
     logger.info("The experiment will be stored in %s\n" % params.dump_path)
     logger.info("")
@@ -125,7 +128,8 @@ def restart_from_checkpoint(ckp_paths, run_variables=None, **kwargs):
 
     # open checkpoint file
     checkpoint = torch.load(
-        ckp_path, map_location="cuda:" + str(torch.distributed.get_rank() % torch.cuda.device_count())
+        ckp_path, map_location="cuda:" +
+        str(torch.distributed.get_rank() % torch.cuda.device_count())
     )
 
     # key is what to look for in the checkpoint file
@@ -138,10 +142,12 @@ def restart_from_checkpoint(ckp_paths, run_variables=None, **kwargs):
                 print(msg)
             except TypeError:
                 msg = value.load_state_dict(checkpoint[key])
-            logger.info("=> loaded {} from checkpoint '{}'".format(key, ckp_path))
+            logger.info(
+                "=> loaded {} from checkpoint '{}'".format(key, ckp_path))
         else:
             logger.warning(
-                "=> failed to load {} from checkpoint '{}'".format(key, ckp_path)
+                "=> failed to load {} from checkpoint '{}'".format(
+                    key, ckp_path)
             )
 
     # re load variable important for the run
@@ -194,3 +200,23 @@ def accuracy(output, target, topk=(1,)):
             correct_k = correct[:k].view(-1).float().sum(0, keepdim=True)
             res.append(correct_k.mul_(100.0 / batch_size))
         return res
+
+
+def concat_local_logits(logits, bs, npatch):
+    '''
+    * Input: tensor of shape(Batch*n_patch, nmb_lptypes)
+    * Return: tensor of shape(Batch, n_patch, nmb_ptypes)
+    * Please read the description before using it
+    * -----------------------------------------------------
+    * Description:
+    * Let v{patch0}_1 denotes patch0 (0~9) of image 1(0~ Batch -1)
+    * Note that now the input has format like
+    *   [v{patch0}_0, v{patch0}_1, v{patch0}_2, ...., v{patch0}_Batch-1, v{patch1}_0, ... v{patch1}_Batch-1]
+    * So, we can not directly use reshape
+    * We have to change the format to
+    *   [v{patch0}_0, v{patch1}_0, v{patch2}_0, ...., v{patch8}_Batch0, v{patch0}_1, ... v{patch8}_1....]
+    '''
+    nmb_lptypes = logits.shape[-1]
+    concat_feature = logits.reshape([npatch, bs, logits]).permute(
+        1, 0, 2).reshape([bs, npatch*nmb_lptypes])
+    return concat_feature

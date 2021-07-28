@@ -16,12 +16,14 @@ import torch
 logger = getLogger()
 
 
-class MultiCropDataset(datasets.ImageFolder):
+class JigsawDataset(datasets.ImageFolder):
     def __init__(
         self,
         data_path,
         size_crops,
+        loc_size_crops,
         nmb_crops,
+        nmb_loc_views,
         min_scale_crops,
         max_scale_crops,
         grid_perside,
@@ -33,12 +35,16 @@ class MultiCropDataset(datasets.ImageFolder):
         # root - dog - 1.png
         #              2.png
         # root - cat - 1.png
-        super(MultiCropDataset, self).__init__(data_path)
-        # size_crops:[224, 96, 255] nmb_crops:[2,6,2]
-        assert len(size_crops) == 3
+        super(JigsawDataset, self).__init__(data_path)
+
+        # size_crops:[224, 96] loc_size_crops:[255]
+        # Error checking
+        assert len(size_crops) == 2
+        assert len(loc_size_crops) == 1
         assert len(size_crops) == len(nmb_crops)
-        assert len(min_scale_crops) == len(nmb_crops)
-        assert len(max_scale_crops) == len(nmb_crops)
+        assert len(loc_size_crops) == len(nmb_loc_views)
+        assert len(min_scale_crops) == (len(nmb_crops) + len(nmb_loc_views))
+        assert len(max_scale_crops) == (len(nmb_crops) + len(nmb_loc_views))
         if size_dataset >= 0:
             self.samples = self.samples[:size_dataset]
         self.return_index = return_index
@@ -47,8 +53,9 @@ class MultiCropDataset(datasets.ImageFolder):
         mean = [0.485, 0.456, 0.406]
         std = [0.228, 0.224, 0.225]
         trans = []
+
         # The global augmentation
-        for i in range(len(size_crops)-1):
+        for i in range(len(size_crops)):
             randomresizedcrop = transforms.RandomResizedCrop(
                 size_crops[i],
                 scale=(min_scale_crops[i], max_scale_crops[i]),
@@ -65,7 +72,7 @@ class MultiCropDataset(datasets.ImageFolder):
         # Resize before slicing images into local patches
         self.rsbf_local = transforms.Compose([
             transforms.RandomResizedCrop(
-                size_crops[-1],
+                loc_size_crops[-1],
                 scale=(min_scale_crops[-1], max_scale_crops[-1]),
             ),
             transforms.ToTensor()
@@ -79,10 +86,10 @@ class MultiCropDataset(datasets.ImageFolder):
             transforms.ToTensor(),
             transforms.Normalize(mean=mean, std=std)])
         # Record number of local images
-        self.nmb_limg = nmb_crops[-1]
+        self.nmb_limg = nmb_loc_views[0]
         self.grid_perside = grid_perside
 
-    def _get_localpatch(self, img, view_list):
+    def _get_localpatch(self, img, view_list, random_order=True):
         '''
         * Append all local patches into view_list
         * view_list:[Global image1, Global image2, ....]
@@ -91,8 +98,10 @@ class MultiCropDataset(datasets.ImageFolder):
         local_img = self.rsbf_local(img)
 
         # To permute the order for local patched, we use torch.randperm here
-        x_order = torch.randperm(self.grid_perside)
-        y_order = torch.randperm(self.grid_perside)
+        x_order = torch.randperm(
+            self.grid_perside) if random_order else range(self.grid_perside)
+        y_order = torch.randperm(
+            self.grid_perside) if random_order else range(self.grid_perside)
 
         grid_size = local_img.shape[-1] // self.grid_perside
         for idx in range(self.nmb_limg):
@@ -111,10 +120,11 @@ class MultiCropDataset(datasets.ImageFolder):
         image = self.loader(path)
         view_list = list(map(lambda trans: trans(image), self.trans))
 
-        # Append the local patched into view_list
-
+        # Append the local patches into view_list
+        self._get_localpatch(image, view_list)
         if self.return_index:
             return index, view_list
+        # now view_list contains 2views, 6m-crops and 3x3x2 patches
         return view_list
 
 

@@ -6,6 +6,7 @@
 #
 import argparse
 import math
+import ntpath
 import os
 import shutil
 import time
@@ -29,13 +30,14 @@ from src.utils import (
     fix_random_seeds,
     AverageMeter,
     init_distributed_mode,
+    concat_local_logits,
 )
-from src.multicropdataset import MultiCropDataset
+from src.localpatch_dataset import JigsawDataset
 import src.resnet50 as resnet_models
 
 logger = getLogger()
 
-parser = argparse.ArgumentParser(description="Implementation of SwAV")
+parser = argparse.ArgumentParser(description="Implementation of ML-SSL")
 
 #########################
 #### data parameters ####
@@ -44,18 +46,24 @@ parser.add_argument("--data_path", type=str, default="/path/to/imagenet",
                     help="path to dataset repository")
 parser.add_argument("--nmb_crops", type=int, default=[2], nargs="+",
                     help="list of number of crops (example: [2, 6])")
+parser.add_argument("--nmb_loc_views", type=int, default=[2], nargs="+",
+                    help="number of views for each local patch (example: [2])")
 parser.add_argument("--size_crops", type=int, default=[224], nargs="+",
                     help="crops resolutions (example: [224, 96])")
+parser.add_argument("--loc_size_crops", type=int, default=[255], nargs="+",
+                    help="views for local patches resolutions (example: [255])")
 parser.add_argument("--min_scale_crops", type=float, default=[0.14], nargs="+",
-                    help="argument in RandomResizedCrop (example: [0.14, 0.05])")
+                    help="argument in RandomResizedCrop (example: [0.14 0.05 0.6])")
 parser.add_argument("--max_scale_crops", type=float, default=[1], nargs="+",
-                    help="argument in RandomResizedCrop (example: [1., 0.14])")
+                    help="argument in RandomResizedCrop (example: [1. 0.14 1.])")
 
 #########################
 ## MLSSL specific params #
 #########################
 parser.add_argument("--crops_for_assign", type=int, nargs="+", default=[0, 1],
                     help="list of crops id used for computing assignments")
+parser.add_argument("--loc_view_for_assign", type=int, nargs="+", default=[0, 1],
+                    help="list of local view id used for computing assignments")
 parser.add_argument("--temperature", default=0.1, type=float,
                     help="temperature parameter in training loss")
 parser.add_argument("--epsilon", default=0.05, type=float,
@@ -66,8 +74,12 @@ parser.add_argument("--feat_dim", default=128, type=int,
                     help="feature dimension")
 parser.add_argument("--nmb_prototypes", default=3000, type=int,
                     help="number of prototypes")
+parser.add_argument("--nmb_local_ptypes", default=5000, type=int,
+                    help="number of local prototypes")
 parser.add_argument("--queue_length", type=int, default=0,
                     help="length of the queue (0 for no queue)")
+parser.add_argument("--local_queue_length", type=int, default=0,
+                    help="length of the queue for local patches(0 for no queue)")
 parser.add_argument("--epoch_queue_starts", type=int, default=15,
                     help="from this epoch, we start using a queue")
 parser.add_argument("--grid_perside", type=int, default=3,
@@ -136,10 +148,12 @@ def main():
     logger, training_stats = initialize_exp(args, "epoch", "loss")
 
     # build data
-    train_dataset = MultiCropDataset(
+    train_dataset = JigsawDataset(
         args.data_path,
         args.size_crops,
+        args.loc_size_crops,
         args.nmb_crops,
+        args.nmb_loc_views,
         args.min_scale_crops,
         args.max_scale_crops,
         args.grid_perside
@@ -163,6 +177,8 @@ def main():
         hidden_mlp=args.hidden_mlp,
         output_dim=args.feat_dim,
         nmb_prototypes=args.nmb_prototypes,
+        nmb_local_ptypes=args.nmb_local_ptypes,
+        npatch=(args.grid_perside**2),
     )
     # synchronize batch norm layers
     if args.sync_bn == "pytorch":
@@ -219,6 +235,10 @@ def main():
     )
     start_epoch = to_restore["epoch"]
 
+    ''' ************
+    * Queues
+    *****************
+    '''
     # build the queue
     queue = None
     queue_path = os.path.join(
@@ -227,6 +247,16 @@ def main():
         queue = torch.load(queue_path)["queue"]
     # the queue needs to be divisible by the batch size
     args.queue_length -= args.queue_length % (
+        args.batch_size * args.world_size)
+
+    # build the local queue
+    local_queue = None
+    local_queue_path = os.path.join(
+        args.dump_path, "local_queue" + str(args.rank) + ".pth")
+    if os.path.isfile(local_queue_path):
+        local_queue = torch.load(local_queue_path)["local_queue"]
+    # the queue needs to be divisible by the batch size
+    args.local_queue_length -= args.local_queue_length % (
         args.batch_size * args.world_size)
 
     cudnn.benchmark = True
@@ -239,17 +269,27 @@ def main():
         # set sampler
         train_loader.sampler.set_epoch(epoch)
 
-        # optionally starts a queue
+        '''
+        * Start Queues (Optional)
+        '''
+        # Global Queues
         if args.queue_length > 0 and epoch >= args.epoch_queue_starts and queue is None:
             queue = torch.zeros(
                 len(args.crops_for_assign),
                 args.queue_length // args.world_size,
                 args.feat_dim,
             ).cuda()
+        # Local Queues
+        if args.local_queue_length > 0 and epoch >= args.epoch_queue_starts and local_queue is None:
+            local_queue = torch.zeros(
+                len(args.loc_view_for_assign),
+                args.local_queue_length // args.world_size,
+                args.feat_dim,
+            ).cuda()
 
         # train the network
-        scores, queue = train(train_loader, model,
-                              optimizer, epoch, lr_schedule, queue)
+        scores, queue, local_queue = train(train_loader, model,
+                                           optimizer, epoch, lr_schedule, queue, local_queue)
         # the scores include epoch and loss
         training_stats.update(scores)
 
@@ -274,9 +314,11 @@ def main():
                 )
         if queue is not None:
             torch.save({"queue": queue}, queue_path)
+        if local_queue is not None:
+            torch.save({"local_queue": local_queue}, local_queue_path)
 
 
-def train(train_loader, model, optimizer, epoch, lr_schedule, queue):
+def train(train_loader, model, optimizer, epoch, lr_schedule, queue, local_queue, lambda1=0.5, lambda2=1.0):
     batch_time = AverageMeter()
     data_time = AverageMeter()
     losses = AverageMeter()
@@ -296,20 +338,21 @@ def train(train_loader, model, optimizer, epoch, lr_schedule, queue):
 
         # normalize the prototypes
         with torch.no_grad():
-            w = model.module.prototypes.weight.data.clone()
-            w = nn.functional.normalize(w, dim=1, p=2)
-            model.module.prototypes.weight.copy_(w)
+            model.ptypes_normalize()
 
         # ============ multi-res forward passes ... ============
-        embedding, output = model(inputs)
-        embedding = embedding.detach()
+        (glb_z, glb_logits), (loc_z, loc_logits) = model(inputs)
+        glb_z = glb_z.detach()
+        loc_z = loc_z.detach()
         bs = inputs[0].size(0)
 
-        # ============ swav loss ... ============
-        loss = 0
-        for i, crop_id in enumerate(args.crops_for_assign):
+        # ============ Global ML-SSL loss ... ============
+        glb_loss = 0
+        global_q = []
+        for i, view_id in enumerate(args.crops_for_assign):
+            # view_id is the index of view to be predicted
             with torch.no_grad():
-                out = output[bs * crop_id: bs * (crop_id + 1)].detach()
+                out = glb_logits[bs * view_id: bs * (view_id + 1)].detach()
 
                 # time to use the queue
                 if queue is not None:
@@ -321,20 +364,77 @@ def train(train_loader, model, optimizer, epoch, lr_schedule, queue):
                         ), out))
                     # fill the queue
                     queue[i, bs:] = queue[i, :-bs].clone()
-                    queue[i, :bs] = embedding[crop_id * bs: (crop_id + 1) * bs]
+                    queue[i, :bs] = glb_z[view_id * bs: (view_id + 1) * bs]
 
                 # get assignments
                 q = distributed_sinkhorn(out)[-bs:]
+                global_q.append(q)
 
             # cluster assignment prediction
             subloss = 0
-            for v in np.delete(np.arange(np.sum(args.nmb_crops)), crop_id):
-                x = output[bs * v: bs * (v + 1)] / args.temperature
+            for v in np.delete(np.arange(np.sum(args.nmb_crops)), view_id):
+                x = glb_logits[bs * v: bs * (v + 1)] / args.temperature
                 subloss -= torch.mean(torch.sum(q *
                                                 F.log_softmax(x, dim=1), dim=1))
-            loss += subloss / (np.sum(args.nmb_crops) - 1)
-        loss /= len(args.crops_for_assign)
+            glb_loss += subloss / (np.sum(args.nmb_crops) - 1)
+        glb_loss /= len(args.crops_for_assign)
 
+        # ============ Local ML-SSL loss ... ============
+        loc_loss = 0
+        n_patch = (loc_logits.shape[0]//bs)//2
+        lbs = bs * n_patch
+        # reshape the logits for later loss computation
+        # original shape:(bs*npatch*2, nmb_locptypes)
+        loc_logits = loc_logits.reshape([2, lbs, loc_logits.shape[-1]])
+
+        for i, view_id in enumerate(args.loc_view_for_assign):
+            with torch.no_grad():
+                out = loc_logits[view_id].detach()
+
+                # time to use the queue
+                if local_queue is not None:
+                    if use_the_queue or not torch.all(local_queue[i, -1, :] == 0):
+                        use_the_queue = True
+                        out = torch.cat((torch.mm(
+                            local_queue[i],
+                            model.module.local_ptypes.weight.t()
+                        ), out))
+                    # fill the local_queue
+                    local_queue[i, lbs:] = local_queue[i, :-lbs].clone()
+                    local_queue[i, :lbs] = loc_z[view_id *
+                                                 lbs: (view_id + 1) * lbs]
+
+                # get assignments
+                loc_q = distributed_sinkhorn(out)[-lbs:]
+
+            # cluster assignment prediction for local patches
+            subloss = 0
+            for v in np.delete(np.arange(np.sum(args.nmb_loc_views)), view_id):
+                # Notice that loc_logits[0][0~bs*n_patch-1] corresponds to loc_logits[1][0~bs*n_patch-1],
+                # so we can compare p,q directly
+                x = loc_logits[v] / args.temperature
+                subloss -= torch.mean(torch.sum(loc_q *
+                                                F.log_softmax(x, dim=1), dim=1))
+            loc_loss += subloss / (np.sum(args.nmb_loc_views) - 1)
+        loc_loss /= (len(args.loc_view_for_assign)*n_patch)
+
+        # ============ Local2 Global ML-SSL loss ... ============
+        l2g_loss = 0
+        for v in np.arange(np.sum(args.nmb_loc_views)):
+            # shape of loc_logits[v]: (batch*n_patch, 5000)
+            # Concate them to (batch, n_patch*5000) and predict the global q
+            concat_logits = concat_local_logits(loc_logits[v])
+            logits_l2g = model.forward_l2g(concat_logits)
+
+            for g_vid in range(len(global_q)):
+                # Predict the clustering assignment of both gobal view
+                q_vid = global_q[g_vid]
+                p_l2g = logits_l2g / args.temperature
+                l2g_loss -= torch.mean(torch.sum(q_vid *
+                                                 F.log_softmax(p_l2g, dim=1), dim=1))
+        l2g_loss /= (np.sum(args.nmb_loc_views)*len(global_q))
+
+        loss = glb_loss + lambda1*loc_loss + lambda2*l2g_loss
         # ============ backward and optim step ... ============
         optimizer.zero_grad()
         if args.use_fp16:
@@ -368,7 +468,7 @@ def train(train_loader, model, optimizer, epoch, lr_schedule, queue):
                     lr=optimizer.optim.param_groups[0]["lr"],
                 )
             )
-    return (epoch, losses.avg), queue
+    return (epoch, losses.avg), queue, local_queue
 
 
 @torch.no_grad()
