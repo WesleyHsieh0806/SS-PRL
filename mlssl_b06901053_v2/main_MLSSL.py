@@ -72,7 +72,7 @@ parser.add_argument("--sinkhorn_iterations", default=3, type=int,
                     help="number of iterations in Sinkhorn-Knopp algorithm")
 parser.add_argument("--feat_dim", default=128, type=int,
                     help="feature dimension")
-parser.add_argument("--nmb_prototypes", default=3000, type=int,
+parser.add_argument("--nmb_ptypes", default=3000, type=int,
                     help="number of prototypes")
 parser.add_argument("--nmb_local_ptypes", default=5000, type=int,
                     help="number of local prototypes")
@@ -176,7 +176,7 @@ def main():
         normalize=True,
         hidden_mlp=args.hidden_mlp,
         output_dim=args.feat_dim,
-        nmb_prototypes=args.nmb_prototypes,
+        nmb_ptypes=args.nmb_ptypes,
         nmb_local_ptypes=args.nmb_local_ptypes,
         npatch=(args.grid_perside**2),
     )
@@ -360,7 +360,7 @@ def train(train_loader, model, optimizer, epoch, lr_schedule, queue, local_queue
                         use_the_queue = True
                         out = torch.cat((torch.mm(
                             queue[i],
-                            model.module.prototypes.weight.t()
+                            model.module.ptypes.weight.t()
                         ), out))
                     # fill the queue
                     queue[i, bs:] = queue[i, :-bs].clone()
@@ -416,7 +416,7 @@ def train(train_loader, model, optimizer, epoch, lr_schedule, queue, local_queue
                 subloss -= torch.mean(torch.sum(loc_q *
                                                 F.log_softmax(x, dim=1), dim=1))
             loc_loss += subloss / (np.sum(args.nmb_loc_views) - 1)
-        loc_loss /= (len(args.loc_view_for_assign)*n_patch)
+        loc_loss /= (len(args.loc_view_for_assign))
 
         # ============ Local2 Global ML-SSL loss ... ============
         l2g_loss = 0
@@ -444,9 +444,7 @@ def train(train_loader, model, optimizer, epoch, lr_schedule, queue, local_queue
             loss.backward()
         # cancel gradients for the prototypes
         if iteration < args.freeze_prototypes_niters:
-            for name, p in model.named_parameters():
-                if "prototypes" in name:
-                    p.grad = None
+            model.clean_grad()
         optimizer.step()
 
         # ============ misc ... ============

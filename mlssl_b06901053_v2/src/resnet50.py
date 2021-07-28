@@ -148,7 +148,7 @@ class ResNet(nn.Module):
             normalize=False,
             output_dim=0,
             hidden_mlp=0,
-            nmb_prototypes=0,
+            nmb_ptypes=0,
             nmb_local_ptypes=0,
             npatch=0,
             eval_mode=False,
@@ -237,11 +237,11 @@ class ResNet(nn.Module):
         # Construct prototype layers
         ##########
         # prototype layer
-        self.prototypes = None
-        if isinstance(nmb_prototypes, list):
-            self.prototypes = MultiPrototypes(output_dim, nmb_prototypes)
-        elif nmb_prototypes > 0:
-            self.prototypes = nn.Linear(output_dim, nmb_prototypes, bias=False)
+        self.ptypes = None
+        if isinstance(nmb_ptypes, list):
+            self.ptypes = MultiPrototypes(output_dim, nmb_ptypes)
+        elif nmb_ptypes > 0:
+            self.ptypes = nn.Linear(output_dim, nmb_ptypes, bias=False)
 
         # Local prototype layers
         self.local_ptypes = None
@@ -252,9 +252,9 @@ class ResNet(nn.Module):
                 output_dim, nmb_local_ptypes, bias=False)
         # Local2 Global prototype layer
         self.l2g_ptypes = None
-        if (self.local_ptypes is not None) and (self.prototypes is not None):
+        if (self.local_ptypes is not None) and (self.ptypes is not None):
             self.l2g_ptypes = nn.Linear(
-                nmb_local_ptypes*npatch, nmb_prototypes, bias=False)
+                nmb_local_ptypes*npatch, nmb_ptypes, bias=False)
 
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
@@ -274,16 +274,23 @@ class ResNet(nn.Module):
                 elif isinstance(m, BasicBlock):
                     nn.init.constant_(m.bn2.weight, 0)
 
+    def clean_grad(self):
+        for name, p in self.named_parameters():
+            if ("ptypes" in name):
+                p.grad = None
+
     def ptypes_normalize(self):
         with torch.no_grad():
-            if self.prototypes is not None:
-                w = self.prototypes.weight.data.clone()
+            if self.ptypes is not None:
+                w = self.ptypes.weight.data.clone()
                 w = nn.functional.normalize(w, dim=1, p=2)
-                self.prototypes.weight.copy_(w)
+                self.ptypes.weight.copy_(w)
+
             if self.local_ptypes is not None:
                 loc_w = self.local_ptypes.weight.data.clone()
                 loc_w = nn.functional.normalize(loc_w, dim=1, p=2)
                 self.local_ptypes.weight.copy_(loc_w)
+
             if self.l2g_ptypes is not None:
                 lg2_w = self.l2g_ptypes.weight.data.clone()
                 lg2_w = nn.functional.normalize(lg2_w, dim=1, p=2)
@@ -357,8 +364,8 @@ class ResNet(nn.Module):
         if self.l2norm:
             x = nn.functional.normalize(x, dim=1, p=2)
 
-        if self.prototypes is not None:
-            return x, self.prototypes(x)
+        if self.ptypes is not None:
+            return x, self.ptypes(x)
         return x
 
     def local_forward_head(self, x):
@@ -414,17 +421,17 @@ class ResNet(nn.Module):
 
 
 class MultiPrototypes(nn.Module):
-    def __init__(self, output_dim, nmb_prototypes):
+    def __init__(self, output_dim, nmb_ptypes):
         super(MultiPrototypes, self).__init__()
-        self.nmb_heads = len(nmb_prototypes)
-        for i, k in enumerate(nmb_prototypes):
-            self.add_module("prototypes" + str(i),
+        self.nmb_heads = len(nmb_ptypes)
+        for i, k in enumerate(nmb_ptypes):
+            self.add_module("ptypes" + str(i),
                             nn.Linear(output_dim, k, bias=False))
 
     def forward(self, x):
         out = []
         for i in range(self.nmb_heads):
-            out.append(getattr(self, "prototypes" + str(i))(x))
+            out.append(getattr(self, "ptypes" + str(i))(x))
         return out
 
 
