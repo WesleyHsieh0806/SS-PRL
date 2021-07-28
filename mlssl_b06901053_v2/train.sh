@@ -18,7 +18,7 @@ BATCH_PERGPU=128
 python -m torch.distributed.launch --nproc_per_node=4 main_MLSSL.py \
 --data_path $DATASET_PATH \
 --nmb_crops 2 6 \
---loc_nmb_views 2 \
+--nmb_loc_views 2 \
 --size_crops 224 96 \
 --loc_size_crops 255 \
 --min_scale_crops 0.14 0.05 0.6 \
