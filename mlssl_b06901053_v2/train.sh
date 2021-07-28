@@ -21,7 +21,7 @@ python -m torch.distributed.launch --nproc_per_node=4 main_MLSSL.py \
 --loc_nmb_views 2 \
 --size_crops 224 96 \
 --loc_size_crops 255 \
---min_scale_crops 0.14 0.05 0.6\
+--min_scale_crops 0.14 0.05 0.6 \
 --max_scale_crops 1. 0.14 1.\
 --batch_size $BATCH_PERGPU \
 --crops_for_assign 0 1 \
