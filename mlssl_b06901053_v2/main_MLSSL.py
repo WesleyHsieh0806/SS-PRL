@@ -338,7 +338,7 @@ def train(train_loader, model, optimizer, epoch, lr_schedule, queue, local_queue
 
         # normalize the prototypes
         with torch.no_grad():
-            model.ptypes_normalize()
+            model.module.ptypes_normalize()
 
         # ============ multi-res forward passes ... ============
         (glb_z, glb_logits), (loc_z, loc_logits) = model(inputs)
@@ -424,7 +424,7 @@ def train(train_loader, model, optimizer, epoch, lr_schedule, queue, local_queue
             # shape of loc_logits[v]: (batch*n_patch, 5000)
             # Concate them to (batch, n_patch*5000) and predict the global q
             concat_logits = concat_local_logits(loc_logits[v])
-            logits_l2g = model.forward_l2g(concat_logits)
+            logits_l2g = model.module.forward_l2g(concat_logits)
 
             for g_vid in range(len(global_q)):
                 # Predict the clustering assignment of both gobal view
@@ -444,7 +444,7 @@ def train(train_loader, model, optimizer, epoch, lr_schedule, queue, local_queue
             loss.backward()
         # cancel gradients for the prototypes
         if iteration < args.freeze_prototypes_niters:
-            model.clean_grad()
+            model.module.clean_grad()
         optimizer.step()
 
         # ============ misc ... ============
