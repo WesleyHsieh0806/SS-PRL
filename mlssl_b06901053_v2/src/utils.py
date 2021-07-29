@@ -205,7 +205,7 @@ def accuracy(output, target, topk=(1,)):
 def concat_local_logits(logits, bs, npatch):
     '''
     * Input: tensor of shape(Batch*n_patch, nmb_lptypes)
-    * Return: tensor of shape(Batch, n_patch, nmb_ptypes)
+    * Return: tensor of shape(Batch, nmb_ptypes)
     * Please read the description before using it
     * -----------------------------------------------------
     * Description:
@@ -217,6 +217,6 @@ def concat_local_logits(logits, bs, npatch):
     *   [v{patch0}_0, v{patch1}_0, v{patch2}_0, ...., v{patch8}_Batch0, v{patch0}_1, ... v{patch8}_1....]
     '''
     nmb_lptypes = logits.shape[-1]
-    concat_feature = logits.reshape([npatch, bs, logits]).permute(
-        1, 0, 2).reshape([bs, npatch*nmb_lptypes])
+    concat_feature = logits.reshape([npatch, bs, nmb_lptypes]).permute(
+        1, 0, 2).mean(dim=1)
     return concat_feature

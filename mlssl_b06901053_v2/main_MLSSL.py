@@ -338,6 +338,7 @@ def train(train_loader, model, optimizer, epoch, lr_schedule, queue, local_queue
 
         # normalize the prototypes
         with torch.no_grad():
+            # in DDP, use .module before calling functions
             model.module.ptypes_normalize()
 
         # ============ multi-res forward passes ... ============
@@ -422,9 +423,9 @@ def train(train_loader, model, optimizer, epoch, lr_schedule, queue, local_queue
         l2g_loss = 0
         for v in np.arange(np.sum(args.nmb_loc_views)):
             # shape of loc_logits[v]: (batch*n_patch, 5000)
-            # Concate them to (batch, n_patch*5000) and predict the global q
-            concat_logits = concat_local_logits(loc_logits[v])
-            logits_l2g = model.module.forward_l2g(concat_logits)
+            # Average them up to (batch, 5000) and predict the global q
+            mean_logits = concat_local_logits(loc_logits[v])
+            logits_l2g = model.module.forward_l2g(mean_logits)
 
             for g_vid in range(len(global_q)):
                 # Predict the clustering assignment of both gobal view

@@ -254,7 +254,7 @@ class ResNet(nn.Module):
         self.l2g_ptypes = None
         if (self.local_ptypes is not None) and (self.ptypes is not None):
             self.l2g_ptypes = nn.Linear(
-                nmb_local_ptypes*npatch, nmb_ptypes, bias=False)
+                nmb_local_ptypes, nmb_ptypes, bias=False)
 
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
