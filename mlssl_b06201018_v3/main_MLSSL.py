@@ -426,7 +426,7 @@ def train(train_loader, model, optimizer, epoch, lr_schedule, queue, local_queue
             # shape of loc_logits[v]: (batch*n_patch, 5000)
             # Mix up loc_logits, and get the mix coefficient
             # Average them up to (batch, 5000) and predict the global q
-            mean_logits, mix_coeff = concat_local_logits(loc_logits[v], bs, npatch, mix=True)
+            mean_logits, mix_coeff = concat_local_logits(loc_logits[v], bs, n_patch, mix=True)
             logits_l2g = model.module.forward_l2g(mean_logits)
 
             for g_vid in range(len(global_q)):

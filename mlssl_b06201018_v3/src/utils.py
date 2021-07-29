@@ -225,8 +225,12 @@ def concat_local_logits(logits, bs, npatch, mix=False):
         logits1, logits2 = logits[:idx_split], logits[idx_split:]
 
         # Create random binary mask and its coefficient
-        patch_mask = torch.randint(2, (idx_split, npatch, 1)) # (bs/2, npatch, 1)
-        mix_coeff = torch.mean(patch_mask.float(), dim=1) # (bs/2,)
+        patch_mask = torch.randint( # (bs/2, npatch, 1)
+            2, (idx_split, npatch, 1), 
+            device=torch.device('cuda'), 
+            dtype=torch.float,
+        )
+        mix_coeff = torch.mean(patch_mask, dim=1) # (bs/2,)
         
         # Mix the logits and concat it back to concat_feature
         mix_logits = patch_mask * logits1 + (1 - patch_mask) * logits2 # (bs/2, npatch, nmb_ptypes)
