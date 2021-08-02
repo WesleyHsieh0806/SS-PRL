@@ -145,7 +145,7 @@ def main():
     init_distributed_mode(args)
     fix_random_seeds(args.seed)
     # logger: such as log files and consoles training_stats: save logs into pickle files
-    logger, training_stats = initialize_exp(args, "epoch", "loss")
+    logger, training_stats = initialize_exp(args, "epoch", "loss", "glb", "loc", "l2g")
 
     # build data
     train_dataset = JigsawDataset(
@@ -322,6 +322,9 @@ def train(train_loader, model, optimizer, epoch, lr_schedule, queue, local_queue
     batch_time = AverageMeter()
     data_time = AverageMeter()
     losses = AverageMeter()
+    glb_losses = AverageMeter()
+    loc_losses = AverageMeter()
+    l2g_losses = AverageMeter()
 
     model.train()
     use_the_queue = False
@@ -450,6 +453,9 @@ def train(train_loader, model, optimizer, epoch, lr_schedule, queue, local_queue
 
         # ============ misc ... ============
         losses.update(loss.item(), inputs[0].size(0))
+        glb_losses.update(glb_loss.item(), inputs[0].size(0))
+        loc_losses.update(loc_loss.item(), inputs[0].size(0))
+        l2g_losses.update(l2g_loss.item(), inputs[0].size(0))
         batch_time.update(time.time() - end)
         end = time.time()
         if args.rank == 0 and it % 50 == 0:
@@ -458,16 +464,22 @@ def train(train_loader, model, optimizer, epoch, lr_schedule, queue, local_queue
                 "Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t"
                 "Data {data_time.val:.3f} ({data_time.avg:.3f})\t"
                 "Loss {loss.val:.4f} ({loss.avg:.4f})\t"
+                "GLB {glb_loss.val:.4f} ({glb_loss.avg:.4f})\t"
+                "LOC {loc_loss.val:.4f} ({loc_loss.avg:.4f})\t"
+                "L2G {l2g_loss.val:.4f} ({l2g_loss.avg:.4f})\t"
                 "Lr: {lr:.4f}".format(
                     epoch,
                     it,
                     batch_time=batch_time,
                     data_time=data_time,
                     loss=losses,
+                    glb_loss=glb_losses,
+                    loc_loss=loc_losses,
+                    l2g_loss=l2g_losses,
                     lr=optimizer.optim.param_groups[0]["lr"],
                 )
             )
-    return (epoch, losses.avg), queue, local_queue
+    return (epoch, losses.avg, glb_losses.avg, loc_losses.avg, l2g_losses.avg), queue, local_queue
 
 
 @torch.no_grad()
