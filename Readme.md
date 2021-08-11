@@ -1,6 +1,6 @@
 # Prepare Dataset
 ## Mini-ImageNet
-1. Requirements: opencv-python
+1. Requirements: opencv-python, academictorrents
 2. Please make some modifications in get_MiniImageNet.sh according to the descriptions
 
 ## Mini-COCO
