@@ -20,6 +20,10 @@ wget https://raw.githubusercontent.com/yaoyao-liu/mini-imagenet-tools/main/csv_f
 wget https://raw.githubusercontent.com/yaoyao-liu/mini-imagenet-tools/main/csv_files/test.csv -P csv_files
 python get_MiniImageNet.py --imagenet_dir $IMAGENET --output_dir $DATA
 
+# Move images in val and test to train so that we can use the whole 60,000 images for training
+mv $DATA/val/* $DATA/train/
+mv $DATA/test/* $DATA/train/
+
 rm -r csv_files
 
 conda deactivate
