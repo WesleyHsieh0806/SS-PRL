@@ -14,6 +14,6 @@ IMAGENET="ImageNet/train"
 DATA="./MiniImageNet"
 
 # Generate Mini-ImageNet dataset
-python get_MiniImageNEt.py --imagenet_dir $IMAGENET --output_dir $Dataset
+python get_MiniImageNet.py --imagenet_dir $IMAGENET --output_dir $Dataset
 
 conda deactivate
