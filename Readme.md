@@ -1,4 +1,13 @@
 # Prepare Dataset
+## Mini-ImageNet
+1. Requirements: opencv-python
+2. Please make some modifications in get_MiniImageNet.sh according to the descriptions
+
+## Mini-COCO
+1. Requirements: wget, pycocotools
+2. Please make some modifications in get_MiniCOCO.sh according to the descriptions
+
+## ImageNet
 Download Imagenet
 1.  Obtain the following files at [Image-net.org](https://image-net.org/index.php)
     * **ILSVRC2012_img_train.tar**
