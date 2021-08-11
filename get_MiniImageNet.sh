@@ -11,18 +11,15 @@ cd $PBS_O_WORKDIR
 DATA="./MiniImageNet"
 mkdir $DATA
 
-# Specify the path to ILSVRC2012_img_train.tar
-TARFILE="ILSVRC2012_img_train.tar"
-
 # Clone the repository
 git clone https://github.com/yaoyao-liu/mini-imagenet-tools.git
 cd mini-imagenet-tools
 
-# Download its provided tar file if yours do not work
-#at-get a306397ccf9c2ead27155983c254227c0fd938e2
+# Download its provided tar file
+at-get a306397ccf9c2ead27155983c254227c0fd938e2
 
 # Generate Mini-ImageNet dataset
-python mini_imagenet_generator.py --tar_dir $TARFILE --image_resize 0
+python mini_imagenet_generator.py --tar_dir ILSVRC2012_img_train.tar --image_resize 0
 
 # Move processed images to specified folder
 cd ..
