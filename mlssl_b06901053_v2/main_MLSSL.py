@@ -145,7 +145,8 @@ def main():
     init_distributed_mode(args)
     fix_random_seeds(args.seed)
     # logger: such as log files and consoles training_stats: save logs into pickle files
-    logger, training_stats = initialize_exp(args, "epoch", "loss", "glb", "loc", "l2g")
+    logger, training_stats = initialize_exp(
+        args, "epoch", "loss", "glb", "loc", "l2g")
 
     # build data
     train_dataset = JigsawDataset(
@@ -427,7 +428,7 @@ def train(train_loader, model, optimizer, epoch, lr_schedule, queue, local_queue
         for v in np.arange(np.sum(args.nmb_loc_views)):
             # shape of loc_logits[v]: (batch*n_patch, 5000)
             # Average them up to (batch, 5000) and predict the global q
-            mean_logits = concat_local_logits(loc_logits[v])
+            mean_logits = concat_local_logits(loc_logits[v], bs, n_patch)
             logits_l2g = model.module.forward_l2g(mean_logits)
 
             for g_vid in range(len(global_q)):
