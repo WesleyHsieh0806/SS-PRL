@@ -29,7 +29,7 @@ python code/coco_download.py --output_dir data
 
 # Place dataset under root folder
 cd ..
-mv coco-minitrain/data $DATA/data
+mv coco-minitrain/data $DATA/
 rm -rf coco-minitrain/
 
 conda deactivate
