@@ -14,7 +14,7 @@ import numpy as np
 import csv
 import glob
 from shutil import copyfile
-from tqdm import tqdm
+#from tqdm import tqdm
 
 # argument parser
 parser = argparse.ArgumentParser(description='')
@@ -58,7 +58,7 @@ class MiniImageNetGenerator(object):
                         images[row[1]] = [row[0]]
 
                 print('Writing photos....')
-                for cls in tqdm(images.keys()):
+                for cls in images.keys():
                     this_cls_dir = this_split_dir + '/' + cls        
                     if not os.path.exists(this_cls_dir):
                         os.makedirs(this_cls_dir)

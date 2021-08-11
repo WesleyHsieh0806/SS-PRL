@@ -14,6 +14,12 @@ IMAGENET="ImageNet/train"
 DATA="./MiniImageNet"
 
 # Generate Mini-ImageNet dataset
-python get_MiniImageNet.py --imagenet_dir $IMAGENET --output_dir $Dataset
+mkdir csv_files
+wget https://raw.githubusercontent.com/yaoyao-liu/mini-imagenet-tools/main/csv_files/train.csv -P csv_files
+wget https://raw.githubusercontent.com/yaoyao-liu/mini-imagenet-tools/main/csv_files/val.csv -P csv_files
+wget https://raw.githubusercontent.com/yaoyao-liu/mini-imagenet-tools/main/csv_files/test.csv -P csv_files
+python get_MiniImageNet.py --imagenet_dir $IMAGENET --output_dir $DATA
+
+rm -r csv_files
 
 conda deactivate
