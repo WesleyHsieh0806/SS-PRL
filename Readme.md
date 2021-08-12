@@ -1,10 +1,12 @@
 # Prepare Dataset
 ## Mini-ImageNet
-1. Please make some modifications in get_MiniImageNet.sh according to the descriptions
+   Use and modify [get_MiniImageNet.sh](./get_MiniImageNet.sh) according to the descriptions
 
 ## Mini-COCO
-1. Requirements: wget, pycocotools
-2. Please make some modifications in get_MiniCOCO.sh according to the descriptions
+Use and modify [get_MiniCOCO.sh](./get_MiniCOCO.sh) according to the descriptions
+* Requirements: 
+   * wget
+   * pycocotools
 
 ## ImageNet
 Download Imagenet
@@ -12,8 +14,6 @@ Download Imagenet
     * **ILSVRC2012_img_train.tar**
     * **ILSVRC2012_img_val.tar**
     * **ILSVRC2012_devkit_t12.tar.gz**
-    * ILSVRC2012_img_train_t3.tar(Optional)
-    * ILSVRC2012_devkit_t3.tar.gz(Optional)
 2. Preprocess ImageNet validation set:
 
     ``` bash
