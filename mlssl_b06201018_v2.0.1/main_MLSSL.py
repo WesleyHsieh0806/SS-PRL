@@ -399,7 +399,7 @@ def train(train_loader, model, optimizer, epoch, lr_schedule, queue, local_queue
                         use_the_queue = True
                         out = torch.cat((torch.mm(
                             local_queue[i],
-                            model.module.local_ptypes.weight.t()
+                            model.module.ptypes.weight.t()
                         ), out))
                     # fill the local_queue
                     local_queue[i, lbs:] = local_queue[i, :-lbs].clone()
