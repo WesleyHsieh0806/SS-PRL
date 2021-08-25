@@ -31,7 +31,6 @@ python -m torch.distributed.launch --nproc_per_node=4 --master_port 29501 main_M
 --sinkhorn_iterations 3 \
 --feat_dim 128 \
 --nmb_ptypes 3000 \
---nmb_local_ptypes 5000 \
 --queue_length 3840 \
 --local_queue_length 10000 \
 --epoch_queue_starts 15 \
