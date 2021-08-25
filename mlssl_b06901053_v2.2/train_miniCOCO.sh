@@ -38,7 +38,8 @@ python -m torch.distributed.launch --nproc_per_node=4 --master_port 29501 main_M
 --nmb_local_ptypes 5000 \
 --queue_length 3840 \
 --local_queue_length 15000 \
---epoch_queue_starts 15 \
+--epoch_queue_introduce 15 \
+--epoch_queue_starts 30 \
 --epochs $EPOCH \
 --base_lr 0.6 \
 --final_lr 0.0006 \

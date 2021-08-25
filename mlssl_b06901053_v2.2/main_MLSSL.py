@@ -80,8 +80,10 @@ parser.add_argument("--queue_length", type=int, default=0,
                     help="length of the queue (0 for no queue)")
 parser.add_argument("--local_queue_length", type=int, default=0,
                     help="length of the queue for local patches(0 for no queue)")
-parser.add_argument("--epoch_queue_starts", type=int, default=15,
-                    help="from this epoch, we start using a queue")
+parser.add_argument("--epoch_queue_starts", type=int, default=30,
+                    help="from this epoch, we start using the full queue")
+parser.add_argument("--epoch_queue_introduce", type=int, default=15,
+                    help="from this epoch, we start using the queue and increasing the queue length")
 parser.add_argument("--grid_perside", type=int, default=3,
                     help="Number of grids per side for local images.")
 parser.add_argument("--Lambda1", type=float, default=0.5,
@@ -285,7 +287,7 @@ def main():
                 args.feat_dim,
             ).cuda()
         # Local Queues
-        if args.local_queue_length > 0 and local_queue is None:
+        if args.local_queue_length > 0 and epoch >= args.epoch_queue_introduce and local_queue is None:
             local_queue = torch.zeros(
                 len(args.loc_view_for_assign),
                 args.local_queue_length // args.world_size,
@@ -295,7 +297,7 @@ def main():
         # train the network
         scores, queue, local_queue = train(train_loader, model,
                                            optimizer, epoch, lr_schedule, queue, local_queue,
-                                           lambda1=args.Lambda1, lambda2=args.Lambda2, epoch_queue_starts=args.epoch_queue_starts)
+                                           lambda1=args.Lambda1, lambda2=args.Lambda2, epoch_queue_starts=args.epoch_queue_starts, epoch_queue_introduce=args.epoch_queue_introduce)
         # the scores include epoch and loss
         training_stats.update(scores)
 
@@ -324,7 +326,7 @@ def main():
             torch.save({"local_queue": local_queue}, local_queue_path)
 
 
-def train(train_loader, model, optimizer, epoch, lr_schedule, queue, local_queue, lambda1=0.5, lambda2=1.0, epoch_queue_starts=100):
+def train(train_loader, model, optimizer, epoch, lr_schedule, queue, local_queue, lambda1=0.5, lambda2=1.0, epoch_queue_starts=100, epoch_queue_introduce=50):
     batch_time = AverageMeter()
     data_time = AverageMeter()
     losses = AverageMeter()
@@ -407,8 +409,11 @@ def train(train_loader, model, optimizer, epoch, lr_schedule, queue, local_queue
                         use_the_queue = True
 
                         # Gradually increase the length of queue before
-                        curr_locq_size = local_queue.shape[1] if (epoch >= epoch_queue_starts) else (
-                            (local_queue.shape[1] * epoch) // epoch_queue_starts)
+                        if (epoch >= epoch_queue_starts):
+                            curr_locq_size = local_queue.shape[1]
+                        else:
+                            curr_locq_size = ((local_queue.shape[1] * (epoch-epoch_queue_introduce)) // (
+                                epoch_queue_starts-epoch_queue_introduce))
                         out = torch.cat((torch.mm(
                             local_queue[i][:curr_locq_size],
                             model.module.local_ptypes.weight.t()
