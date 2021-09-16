@@ -464,8 +464,8 @@ def train(train_loader, model, optimizer, epoch, lr_schedule, queue, local_queue
         c = norm_local_ptypes @ norm_local_ptypes.T
 
         # Sum up the loss
-        on_diag = torch.diagonal(c).add_(-1).pow_(2).sum()
-        off_diag = off_diagonal(c).pow_(2).sum()
+        on_diag = torch.diagonal(c).add(-1).pow(2).mean()
+        off_diag = off_diagonal(c).pow(2).mean()
         llr_loss = on_diag + off_diag
 
         loss = glb_loss + lambda1*loc_loss + lambda2*l2g_loss + lambda3*llr_loss
@@ -498,7 +498,7 @@ def train(train_loader, model, optimizer, epoch, lr_schedule, queue, local_queue
                 "GLB {glb_loss.val:.4f} ({glb_loss.avg:.4f})\t"
                 "LOC {loc_loss.val:.4f} ({loc_loss.avg:.4f})\t"
                 "L2G {l2g_loss.val:.4f} ({l2g_loss.avg:.4f})\t"
-                "L2G {llr_loss.val:.4f} ({llr_loss.avg:.4f})\t"
+                "LLR {llr_loss.val:.4f} ({llr_loss.avg:.4f})\t"
                 "Lr: {lr:.4f}".format(
                     epoch,
                     it,
