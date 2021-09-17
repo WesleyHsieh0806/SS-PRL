@@ -454,12 +454,15 @@ def train(train_loader, model, optimizer, epoch, lr_schedule, queue, local_queue
 
         # ============ Local Prototype Refinement loss ... ============
         llr_loss = 0.
-        local_ptypes_t = model.module.extract_ptype_weight(
-            ptype_name="local").T  # (dim, nmb_lptypes)
+        local_ptypes = model.module.extract_ptype_weight(
+            ptype_name="local")  # (nmb_lptypes, dim)
 
         # Compute correlation matrix
-        norm_local_ptypes_t = F.batch_norm(local_ptypes_t, None, None, training=True)
-        c = norm_local_ptypes_t.T @ norm_local_ptypes_t
+        norm_local_ptypes = local_ptypes - \
+            local_ptypes.mean(dim=1, keepdim=True)
+        norm_local_ptypes = norm_local_ptypes / \
+            norm_local_ptypes.norm(dim=1, keepdim=True)
+        c = norm_local_ptypes @ norm_local_ptypes.T
 
         # Sum up the loss
         on_diag = torch.diagonal(c).add(-1).pow(2).mean()
