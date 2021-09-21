@@ -333,7 +333,7 @@ def off_diagonal(x):
     return x.flatten()[:-1].view(n - 1, n + 1)[:, 1:].flatten()
 
 
-def train(train_loader, model, optimizer, epoch, lr_schedule, queue, local_queue, lambda1=0.5, lambda2=1.0, lambda3=10.0):
+def train(train_loader, model, optimizer, epoch, lr_schedule, queue, local_queue, lambda1=0.5, lambda2=0.5, lambda3=10.0, lambda4=0.5):
     batch_time = AverageMeter()
     data_time = AverageMeter()
     losses = AverageMeter()
