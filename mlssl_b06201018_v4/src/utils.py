@@ -202,7 +202,7 @@ def accuracy(output, target, topk=(1,)):
         return res
 
 
-def concat_local_logits(logits, bs, npatch):
+def concat_local_logits(logits, bs, npatch, mix=False):
     '''
     * Input: tensor of shape(Batch*n_patch, nmb_lptypes)
     * Return: tensor of shape(Batch, nmb_ptypes)
@@ -216,7 +216,26 @@ def concat_local_logits(logits, bs, npatch):
     * We have to change the format to
     *   [v{patch0}_0, v{patch1}_0, v{patch2}_0, ...., v{patch8}_Batch0, v{patch0}_1, ... v{patch8}_1....]
     '''
-    nmb_lptypes = logits.shape[-1]
-    concat_feature = logits.reshape([npatch, bs, nmb_lptypes]).permute(
-        1, 0, 2).mean(dim=1)
-    return concat_feature
+    logits = logits.reshape(npatch, bs, -1).permute(1, 0, 2) # (bs, npatch, nmb_ptypes)
+    concat_feature = torch.mean(logits, dim=1)
+
+    if mix:
+        assert bs % 2 == 0
+        idx_split = int(bs/2)
+        logits1, logits2 = logits[:idx_split], logits[idx_split:]
+
+        # Create random binary mask and its coefficient
+        patch_mask = torch.randint( # (bs/2, npatch, 1)
+            2, (idx_split, npatch, 1), 
+            device=torch.device('cuda'), 
+            dtype=torch.float,
+        )
+        mix_coeff = torch.mean(patch_mask, dim=1) # (bs/2,)
+
+        # Mix the logits and concat it back to concat_feature
+        mix_logits = patch_mask * logits1 + (1 - patch_mask) * logits2 # (bs/2, npatch, nmb_ptypes)
+        concat_feature = torch.cat([concat_feature, torch.mean(mix_logits, dim=1)], dim=0) # (bs+bs/2, nmb_ptypes)
+
+        return concat_feature, mix_coeff
+
+    return concat_feature 
