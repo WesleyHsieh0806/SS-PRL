@@ -84,7 +84,14 @@ parser.add_argument("--epoch_queue_starts", type=int, default=15,
                     help="from this epoch, we start using a queue")
 parser.add_argument("--grid_perside", type=int, default=3,
                     help="Number of grids per side for local images.")
-
+parser.add_argument("--Lambda1", type=float, default=0.5,
+                    help="Lambda for local ML-SSL loss")
+parser.add_argument("--Lambda2", type=float, default=0.5,
+                    help="Lambda for local to Global ML-SSL loss")
+parser.add_argument("--Lambda3", type=float, default=10.0,
+                    help="Lambda for local Prototype refinement loss")
+parser.add_argument("--Lambda4", type=float, default=0.5,
+                    help="Lambda for PatchMix loss")
 #########################
 #### optim parameters ###
 #########################
@@ -145,7 +152,8 @@ def main():
     init_distributed_mode(args)
     fix_random_seeds(args.seed)
     # logger: such as log files and consoles training_stats: save logs into pickle files
-    logger, training_stats = initialize_exp(args, "epoch", "loss", "glb", "loc", "l2g", "mix")
+    logger, training_stats = initialize_exp(
+        args, "epoch", "loss", "glb", "loc", "l2g", "llr", "mix")
 
     # build data
     train_dataset = JigsawDataset(
@@ -289,7 +297,7 @@ def main():
 
         # train the network
         scores, queue, local_queue = train(train_loader, model,
-                                           optimizer, epoch, lr_schedule, queue, local_queue)
+                                           optimizer, epoch, lr_schedule, queue, local_queue, lambda1=args.Lambda1, lambda2=args.Lambda2, lambda3=args.Lambda3, lambda4=args.Lambda4)
         # the scores include epoch and loss
         training_stats.update(scores)
 
@@ -318,13 +326,21 @@ def main():
             torch.save({"local_queue": local_queue}, local_queue_path)
 
 
-def train(train_loader, model, optimizer, epoch, lr_schedule, queue, local_queue, lambda1=0.5, lambda2=1.0, lambda3=1.0):
+def off_diagonal(x):
+    # return a flattened view of the off-diagonal elements of a square matrix
+    n, m = x.shape
+    assert n == m
+    return x.flatten()[:-1].view(n - 1, n + 1)[:, 1:].flatten()
+
+
+def train(train_loader, model, optimizer, epoch, lr_schedule, queue, local_queue, lambda1=0.5, lambda2=0.5, lambda3=10.0, lambda4=0.5):
     batch_time = AverageMeter()
     data_time = AverageMeter()
     losses = AverageMeter()
     glb_losses = AverageMeter()
     loc_losses = AverageMeter()
     l2g_losses = AverageMeter()
+    llr_losses = AverageMeter()
     mix_losses = AverageMeter()
 
     model.train()
@@ -427,7 +443,7 @@ def train(train_loader, model, optimizer, epoch, lr_schedule, queue, local_queue
         l2g_loss = 0
         l2g_mix_loss = 0
         for v in np.arange(np.sum(args.nmb_loc_views)):
-            # shape of loc_logits[v]: (batch*n_patch, 5000)
+            # shape of loc_logits[v]: (batch*n_patch, 5000)i
             # Mix up loc_logits, and get the mix coefficient
             # Average them up to (batch, 5000) and predict the global q
             mean_logits, mix_coeff = concat_local_logits(loc_logits[v], bs, n_patch, mix=True)
@@ -446,8 +462,24 @@ def train(train_loader, model, optimizer, epoch, lr_schedule, queue, local_queue
         l2g_loss /= (np.sum(args.nmb_loc_views)*len(global_q))
         l2g_mix_loss /= (np.sum(args.nmb_loc_views)*len(global_q))
 
-        loss = glb_loss + lambda1*loc_loss + lambda2*l2g_loss + lambda3*l2g_mix_loss
+        # ============ Local Prototype Refinement loss ... ============
+        llr_loss = 0.
+        local_ptypes = model.module.extract_ptype_weight(
+            ptype_name="local")  # (nmb_lptypes, dim)
 
+        # Compute correlation matrix
+        norm_local_ptypes = local_ptypes - \
+            local_ptypes.mean(dim=1, keepdim=True)
+        norm_local_ptypes = norm_local_ptypes / \
+            norm_local_ptypes.norm(dim=1, keepdim=True)
+        c = norm_local_ptypes @ norm_local_ptypes.T
+
+        # Sum up the loss
+        on_diag = torch.diagonal(c).add(-1).pow(2).mean()
+        off_diag = off_diagonal(c).pow(2).mean()
+        llr_loss = on_diag + off_diag
+
+        loss = glb_loss + lambda1*loc_loss + lambda2*l2g_loss + lambda3*llr_loss + lambda4*l2g_mix_loss
         # ============ backward and optim step ... ============
         optimizer.zero_grad()
         if args.use_fp16:
@@ -465,6 +497,7 @@ def train(train_loader, model, optimizer, epoch, lr_schedule, queue, local_queue
         glb_losses.update(glb_loss.item(), inputs[0].size(0))
         loc_losses.update(loc_loss.item(), inputs[0].size(0))
         l2g_losses.update(l2g_loss.item(), inputs[0].size(0))
+        llr_losses.update(llr_loss.item(), inputs[0].size(0))
         mix_losses.update(l2g_mix_loss.item(), inputs[0].size(0))
         batch_time.update(time.time() - end)
         end = time.time()
@@ -477,6 +510,7 @@ def train(train_loader, model, optimizer, epoch, lr_schedule, queue, local_queue
                 "GLB {glb_loss.val:.4f} ({glb_loss.avg:.4f})\t"
                 "LOC {loc_loss.val:.4f} ({loc_loss.avg:.4f})\t"
                 "L2G {l2g_loss.val:.4f} ({l2g_loss.avg:.4f})\t"
+                "LLR {llr_loss.val:.4f} ({llr_loss.avg:.4f})\t"
                 "MIX {mix_loss.val:.4f} ({mix_loss.avg:.4f})\t"
                 "Lr: {lr:.4f}".format(
                     epoch,
@@ -487,11 +521,12 @@ def train(train_loader, model, optimizer, epoch, lr_schedule, queue, local_queue
                     glb_loss=glb_losses,
                     loc_loss=loc_losses,
                     l2g_loss=l2g_losses,
+                    llr_loss=llr_losses,
                     mix_loss=mix_losses,
                     lr=optimizer.optim.param_groups[0]["lr"],
                 )
             )
-    return (epoch, losses.avg, glb_losses.avg, loc_losses.avg, l2g_losses.avg, mix_losses.avg), queue, local_queue
+    return (epoch, losses.avg, glb_losses.avg, loc_losses.avg, l2g_losses.avg, llr_losses.avg, mix_losses.avg), queue, local_queue
 
 
 @torch.no_grad()

@@ -231,11 +231,11 @@ def concat_local_logits(logits, bs, npatch, mix=False):
             dtype=torch.float,
         )
         mix_coeff = torch.mean(patch_mask, dim=1) # (bs/2,)
-        
+
         # Mix the logits and concat it back to concat_feature
         mix_logits = patch_mask * logits1 + (1 - patch_mask) * logits2 # (bs/2, npatch, nmb_ptypes)
         concat_feature = torch.cat([concat_feature, torch.mean(mix_logits, dim=1)], dim=0) # (bs+bs/2, nmb_ptypes)
 
         return concat_feature, mix_coeff
-    
-    return concat_feature
+
+    return concat_feature 

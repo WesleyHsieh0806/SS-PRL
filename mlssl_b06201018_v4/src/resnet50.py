@@ -296,6 +296,18 @@ class ResNet(nn.Module):
                 lg2_w = nn.functional.normalize(lg2_w, dim=1, p=2)
                 self.l2g_ptypes.weight.copy_(lg2_w)
 
+    def extract_ptype_weight(self, ptype_name="local"):
+        ''' Return the prototype'''
+        if ptype_name == "local":
+            if self.local_ptypes is not None:
+                return self.local_ptypes.weight.data
+        elif ptype_name == "global":
+            if self.ptypes is not None:
+                return self.ptypes.weight.data
+        elif ptype_name == "l2g":
+            if self.l2g_ptypes is not None:
+                return self.l2g_ptypes.weight.data
+
     def _make_layer(self, block, planes, blocks, stride=1, dilate=False):
         norm_layer = self._norm_layer
         downsample = None
