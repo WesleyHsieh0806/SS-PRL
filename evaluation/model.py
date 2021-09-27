@@ -20,7 +20,10 @@ class Backbone(nn.Module):
         elif name in ['densecl', 'simclr', 'detco']:
             state_dict = checkpoint['state_dict']
         elif name == 'swav':
-            state_dict = checkpoint
+            try:
+                state_dict = checkpoint['state_dict']
+            except:
+                state_dict = checkpoint
             for k in list(state_dict.keys()):
                 if not k.startswith('module.projection_head') and \
                    not k.startswith('module.prototypes'):
