@@ -3,7 +3,8 @@
 This code provides a PyTorch implementation for multi-label evaluation on [COCO](https://cocodataset.org/#home) and [PASCAL VOC](http://host.robots.ox.ac.uk/pascal/VOC/).
 
 ## Dataset preparation
-Please download [COCO-2014](https://cocodataset.org/#download) and [VOC-2007](http://host.robots.ox.ac.uk/pascal/VOC/voc2007/index.html) from the official websites.
+Please download [COCO-2014](https://cocodataset.org/#download) and [VOC-2007](http://host.robots.ox.ac.uk/pascal/VOC/voc2007/index.html) from the official websites.  
+For those who prefer to download the datasets from command line, please refer to [get_COCO.sh](../get_COCO.sh) and [get_VOC.sh](../get_VOC.sh).
 
 ## Supported pretrained models 
 This code only supports certain SSL-pretrained models. Belows are the supported models and where to get their pretrained weights:  
