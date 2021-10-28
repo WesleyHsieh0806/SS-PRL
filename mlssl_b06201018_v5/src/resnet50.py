@@ -149,8 +149,8 @@ class ResNet(nn.Module):
             output_dim=0,
             hidden_mlp=0,
             nmb_ptypes=0,
-            nmb_local_ptypes=0,
-            npatch=0,
+            nmb_local_ptypes=[0],
+            npatch=[0],
             eval_mode=False,
     ):
         super(ResNet, self).__init__()
@@ -220,18 +220,22 @@ class ResNet(nn.Module):
                 nn.Linear(hidden_mlp, output_dim),
             )
         # Local projection head
-        if output_dim == 0:
-            self.l_pro_head = None
-        elif hidden_mlp == 0:
-            self.l_pro_head = nn.Linear(
-                num_out_filters * block.expansion, output_dim)
-        else:
-            self.l_pro_head = nn.Sequential(
-                nn.Linear(num_out_filters * block.expansion, hidden_mlp),
-                nn.BatchNorm1d(hidden_mlp),
-                nn.ReLU(inplace=True),
-                nn.Linear(hidden_mlp, output_dim),
-            )
+        l_pro_heads = []
+        for i in range(len(nmb_local_ptypes)):
+            if output_dim == 0:
+                self.add_module("l_pro_head" + str(i), None)
+            elif hidden_mlp == 0:
+                self.add_module("l_pro_head" + str(i), 
+                                nn.Linear(num_out_filters * block.expansion, output_dim))
+            else:
+                self.add_module("l_pro_head" + str(i),
+                    nn.Sequential(
+                        nn.Linear(num_out_filters * block.expansion, hidden_mlp),
+                        nn.BatchNorm1d(hidden_mlp),
+                        nn.ReLU(inplace=True),
+                        nn.Linear(hidden_mlp, output_dim),
+                    )                
+                )
 
         ###########
         # Construct prototype layers
@@ -244,17 +248,22 @@ class ResNet(nn.Module):
             self.ptypes = nn.Linear(output_dim, nmb_ptypes, bias=False)
 
         # Local prototype layers
-        self.local_ptypes = None
-        if isinstance(nmb_local_ptypes, list):
-            self.local_ptypes = MultiPrototypes(output_dim, nmb_local_ptypes)
-        elif nmb_local_ptypes > 0:
-            self.local_ptypes = nn.Linear(
-                output_dim, nmb_local_ptypes, bias=False)
+        for i in range(len(nmb_local_ptypes)):
+            if isinstance(nmb_local_ptypes[i], list):
+                self.add_module("local_ptypes" + str(i),
+                                MultiPrototypes(output_dim, nmb_local_ptypes[i]))
+            elif nmb_local_ptypes[i] > 0:
+                self.add_module("local_ptypes" + str(i),
+                                nn.Linear(output_dim, nmb_local_ptypes[i], bias=False))
+            else:
+                self.add_module("local_ptypes" + str(i), None)
+
         # Local2 Global prototype layer
-        self.l2g_ptypes = None
-        if (self.local_ptypes is not None) and (self.ptypes is not None):
-            self.l2g_ptypes = nn.Linear(
-                nmb_local_ptypes, nmb_ptypes, bias=False)
+        for i in range(len(nmb_local_ptypes)):
+            if (getattr(self, "local_ptypes" + str(i)) is not None) and (self.ptypes is not None):
+                self.add_module("l2g_ptypes" + str(i),
+                                nn.Linear(nmb_local_ptypes[i], nmb_ptypes, bias=False))
+        self.nmb_local_levels = len(nmb_local_ptypes)
 
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
@@ -286,15 +295,18 @@ class ResNet(nn.Module):
                 w = nn.functional.normalize(w, dim=1, p=2)
                 self.ptypes.weight.copy_(w)
 
-            if self.local_ptypes is not None:
-                loc_w = self.local_ptypes.weight.data.clone()
-                loc_w = nn.functional.normalize(loc_w, dim=1, p=2)
-                self.local_ptypes.weight.copy_(loc_w)
+            for i in range(self.nmb_local_levels):
+                local_ptypes = getattr(self, "local_ptypes" + str(i))
+                if local_ptypes is not None:
+                    loc_w = local_ptypes.weight.data.clone()
+                    loc_w = nn.functional.normalize(loc_w, dim=1, p=2)
+                    local_ptypes.weight.copy_(loc_w)
 
-            if self.l2g_ptypes is not None:
-                lg2_w = self.l2g_ptypes.weight.data.clone()
-                lg2_w = nn.functional.normalize(lg2_w, dim=1, p=2)
-                self.l2g_ptypes.weight.copy_(lg2_w)
+                l2g_ptypes = getattr(self, "l2g_ptypes" + str(i))
+                if l2g_ptypes is not None:
+                    lg2_w = l2g_ptypes.weight.data.clone()
+                    lg2_w = nn.functional.normalize(lg2_w, dim=1, p=2)
+                    l2g_ptypes.weight.copy_(lg2_w)
 
     def _make_layer(self, block, planes, blocks, stride=1, dilate=False):
         norm_layer = self._norm_layer
@@ -368,22 +380,29 @@ class ResNet(nn.Module):
             return x, self.ptypes(x)
         return x
 
-    def local_forward_head(self, x):
-        if self.l_pro_head is not None:
-            x = self.l_pro_head(x)
+    def local_forward_head(self, x_list):
+        ret_z, ret_logit = [], []
+        for i in range(self.nmb_local_levels):
+            x = x_list[i]
+            l_pro_head = getattr(self, "l_pro_head" + str(i))
+            local_ptypes = getattr(self, "local_ptypes" + str(i))
+            if l_pro_head is not None:
+                x = l_pro_head(x)
 
-        if self.l2norm:
-            x = nn.functional.normalize(x, dim=1, p=2)
+            if self.l2norm:
+                x = nn.functional.normalize(x, dim=1, p=2)
 
-        if self.local_ptypes is not None:
-            return x, self.local_ptypes(x)
-        return x
+            ret_z.append(x)
+            if local_ptypes is not None:
+                ret_logit.append(local_ptypes(x))
+        return ret_z, ret_logit
 
-    def forward_l2g(self, loc_cat_logits):
+    def forward_l2g(self, loc_cat_logits, idx):
+        l2g_ptypes = getattr(self, "l2g_ptypes" + str(idx))
         if self.l2norm:
             loc_cat_logits = nn.functional.normalize(
                 loc_cat_logits, dim=1, p=2)
-        return self.l2g_ptypes(loc_cat_logits)
+        return l2g_ptypes(loc_cat_logits)
 
     def forward(self, inputs):
         # Dataset returns list(Sequence), so the inputs produced by Dataloader are also lists
@@ -413,10 +432,13 @@ class ResNet(nn.Module):
                 f = torch.cat((f, _out))
             start_idx = end_idx
         # Partition apart the global and local f
-        global_f = f[:bs*idx_crops[-2]]
-        local_f = f[bs*idx_crops[-2]:]
+        local_idx_offset = -(self.nmb_local_levels + 1)
+        global_f = f[:bs * idx_crops[local_idx_offset]]
+        # local_f is a list [local_f0, local_f1, ...]
+        local_f = [f[bs * idx_crops[local_idx_offset + i]:bs * idx_crops[local_idx_offset + i + 1]] 
+                                                        for i in range(self.nmb_local_levels)]
 
-        # 3. Return (global_z,global_p), (local_z, local_p) respectively
+        # 3. Return (global_z,global_p), ([local_z0, local_z1, ...], [local_p0, local_p1, ...]) respectively
         return self.forward_head(global_f), self.local_forward_head(local_f)
 
 

@@ -22,6 +22,7 @@ class JigsawDataset(datasets.ImageFolder):
         data_path,
         size_crops,
         loc_size_crops,
+        loc_size_patches,
         nmb_crops,
         nmb_loc_views,
         min_scale_crops,
@@ -40,9 +41,9 @@ class JigsawDataset(datasets.ImageFolder):
         # size_crops:[224, 96] loc_size_crops:[255]
         # Error checking
         assert len(size_crops) == 2
-        assert len(loc_size_crops) == 1
+        # assert len(loc_size_crops) == 1
         assert len(size_crops) == len(nmb_crops)
-        assert len(loc_size_crops) == len(nmb_loc_views)
+        assert len(loc_size_crops) == len(loc_size_patches) == len(nmb_loc_views) ==  len(grid_perside)
         assert len(min_scale_crops) == (len(nmb_crops) + len(nmb_loc_views))
         assert len(max_scale_crops) == (len(nmb_crops) + len(nmb_loc_views))
         if size_dataset >= 0:
@@ -69,42 +70,53 @@ class JigsawDataset(datasets.ImageFolder):
             ] * nmb_crops[i])
         self.trans = trans
 
+        # The local augmentation
         # Resize before slicing images into local patches
-        self.rsbf_local = transforms.Compose([
-            transforms.RandomResizedCrop(
-                loc_size_crops[-1],
-                scale=(min_scale_crops[-1], max_scale_crops[-1]),
-            ),
-            transforms.ToTensor()
-        ])
-        # The augmentation for each local patch
-        self.local_tran = transforms.Compose([
-            transforms.ToPILImage(),
-            transforms.RandomCrop(64),
-            transforms.RandomHorizontalFlip(p=0.5),
-            transforms.Compose(color_transform),
-            transforms.ToTensor(),
-            transforms.Normalize(mean=mean, std=std)])
+        local_trans = []
+        loc_idx_offset = len(size_crops)
+        for i in range(len(min_scale_crops)-loc_idx_offset):
+            resize_totensor = transforms.Compose([
+                transforms.RandomResizedCrop(
+                    loc_size_crops[i],
+                    scale=(min_scale_crops[loc_idx_offset+i], max_scale_crops[loc_idx_offset+i]),
+                ),
+                transforms.ToTensor()
+            ])
+            crop_color = transforms.Compose([
+                transforms.ToPILImage(),
+                transforms.RandomCrop(loc_size_patches[i]),
+                transforms.RandomHorizontalFlip(p=0.5),
+                transforms.Compose(color_transform),
+                transforms.ToTensor(),
+                transforms.Normalize(mean=mean, std=std)
+            ])
+            local_trans.append((resize_totensor, crop_color))
+        self.local_trans = local_trans
+ 
         # Record number of local images
-        self.nmb_limg = nmb_loc_views[0]
+        self.nmb_loc_views = nmb_loc_views
         self.grid_perside = grid_perside
 
-    def _get_localpatch(self, img, view_list, random_order=True):
+    def _get_localpatch(self, img, idx, view_list, random_order=True):
         '''
         * Append all local patches into view_list
         * view_list:[Global image1, Global image2, ....]
         * -> [Gimg1, Gimg2, ..., LocalPatc1(position 0), ..., LocalPatc2(position 0), LocalPatc2(position 8)]
         '''
-        local_img = self.rsbf_local(img)
+        resize_totensor, crop_color = self.local_trans[idx]
+        grid_perside = self.grid_perside[idx]
+        nmb_loc_views = self.nmb_loc_views[idx]
+
+        local_img = resize_totensor(img)
 
         # To permute the order for local patched, we use torch.randperm here
         x_order = torch.randperm(
-            self.grid_perside) if random_order else range(self.grid_perside)
+            grid_perside) if random_order else range(grid_perside)
         y_order = torch.randperm(
-            self.grid_perside) if random_order else range(self.grid_perside)
+            grid_perside) if random_order else range(grid_perside)
 
-        grid_size = local_img.shape[-1] // self.grid_perside
-        for idx in range(self.nmb_limg):
+        grid_size = local_img.shape[-1] // grid_perside
+        for _ in range(nmb_loc_views):
             for i in x_order:
                 for j in y_order:
                     x_offset = i * grid_size
@@ -113,7 +125,7 @@ class JigsawDataset(datasets.ImageFolder):
                         :, y_offset: y_offset + grid_size, x_offset: x_offset + grid_size
                     ]
                     # Append this local patch
-                    view_list.append(self.local_tran(local_patch))
+                    view_list.append(crop_color(local_patch))
 
     def __getitem__(self, index) -> list:
         path, _ = self.samples[index]
@@ -121,10 +133,11 @@ class JigsawDataset(datasets.ImageFolder):
         view_list = list(map(lambda trans: trans(image), self.trans))
 
         # Append the local patches into view_list
-        self._get_localpatch(image, view_list)
+        for i in range(len(self.grid_perside)):
+            self._get_localpatch(image, i, view_list)
         if self.return_index:
             return index, view_list
-        # now view_list contains 2views, 6m-crops and 3x3x2 patches
+        # now view_list contains 2views, 6m-crops and 3x3x2,...,nxnx2 patches
         return view_list
 
 
