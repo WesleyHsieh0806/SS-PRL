@@ -441,9 +441,11 @@ class ResNet(nn.Module):
         local_offset = idx_crops[local_idx_offset]
         global_f = f[:bs * local_offset]
         # local_f is a list [local_f0, local_f1, ...]
-        # local_offset = 8, grid_perside=[3,5] -> f[bs*8:bs*(8+18)]
-        local_f = [f[bs * (local_offset+2*(self.grid_per_side[i-1]**2)):bs * (local_offset + 2 * (self.grid_per_side[i]**2))]
-                   if (i != 0) else f[bs * local_offset:bs * (local_offset + 2 * (self.grid_per_side[i]**2))]
+        # local_offset = 8, grid_perside=[3,5] -> f[bs*8:bs*(8+18)], f[bs*(8+18):bs*(8+68)]
+        cum_nofgrid = torch.cumsum(torch.Tensor([2*(nof_grid**2)
+                                                 for nof_grid in self.grid_per_side]), 0)
+        local_f = [f[bs * (local_offset+cum_nofgrid[i-1]):bs * (local_offset + cum_nofgrid[i])]
+                   if (i != 0) else f[bs * local_offset:bs * (local_offset + cum_nofgrid[i])]
                    for i in range(self.nmb_local_levels)]
 
         # 3. Return (global_z,global_p), ([local_z0, local_z1, ...], [local_p0, local_p1, ...]) respectively
