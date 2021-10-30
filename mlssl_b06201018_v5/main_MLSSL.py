@@ -448,7 +448,7 @@ def train(train_loader, model, optimizer, epoch, lr_schedule, queue, local_queue
                     x = loc_logits_list[i][v] / args.temperature
                     subloss -= torch.mean(torch.sum(loc_q *
                                                     F.log_softmax(x, dim=1), dim=1))
-                loc_loss += subloss / (np.sum(args.nmb_loc_views) - 1)
+                loc_loss += subloss / (np.sum(args.nmb_loc_views[i]) - 1)
             loc_loss /= (len(args.loc_view_for_assign))
             loc_loss_list.append(loc_loss)
 
@@ -523,7 +523,7 @@ def train(train_loader, model, optimizer, epoch, lr_schedule, queue, local_queue
     scores += tuple(l.avg for l in loc_losses)
     scores += tuple(l.avg for l in l2g_losses)
 
-    return scores, queue, local_queue
+    return scores, queue, local_queues
 
 
 @torch.no_grad()
