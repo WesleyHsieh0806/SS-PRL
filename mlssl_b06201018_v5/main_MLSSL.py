@@ -523,7 +523,7 @@ def train(train_loader, model, optimizer, epoch, lr_schedule, queue, local_queue
     scores += tuple(l.avg for l in loc_losses)
     scores += tuple(l.avg for l in l2g_losses)
 
-    return scores, queue, local_queue
+    return scores, queue, local_queues
 
 
 @torch.no_grad()
