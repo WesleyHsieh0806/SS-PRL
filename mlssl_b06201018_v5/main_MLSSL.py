@@ -192,6 +192,7 @@ def main():
         nmb_ptypes=args.nmb_ptypes,
         nmb_local_ptypes=args.nmb_local_ptypes,
         npatch=[0],
+        grid_per_side=args.grid_perside,
     )
     # synchronize batch norm layers
     if args.sync_bn == "pytorch":
@@ -308,7 +309,7 @@ def main():
 
         # train the network
         scores, queue, local_queues = train(train_loader, model,
-                                           optimizer, epoch, lr_schedule, queue, local_queues, args.lambda1, args.lambda2)
+                                            optimizer, epoch, lr_schedule, queue, local_queues, args.lambda1, args.lambda2)
         # the scores include epoch and loss
         training_stats.update(scores)
 
@@ -335,7 +336,8 @@ def main():
             torch.save({"queue": queue}, queue_path)
         for i in range(len(args.local_queue_length)):
             if local_queues[i] is not None:
-                torch.save({"local_queue": local_queues[i]}, local_queue_paths[i])
+                torch.save(
+                    {"local_queue": local_queues[i]}, local_queue_paths[i])
 
 
 def train(train_loader, model, optimizer, epoch, lr_schedule, queue, local_queues, lambda1=[0.5], lambda2=[0.5]):
@@ -413,7 +415,8 @@ def train(train_loader, model, optimizer, epoch, lr_schedule, queue, local_queue
 
             # reshape the logits for later loss computation
             # original shape:(bs*npatch*2, nmb_locptypes)
-            loc_logits_list[i] = loc_logits_list[i].reshape([2, lbs, loc_logits_list[i].shape[-1]])
+            loc_logits_list[i] = loc_logits_list[i].reshape(
+                [2, lbs, loc_logits_list[i].shape[-1]])
 
             for j, view_id in enumerate(args.loc_view_for_assign):
                 with torch.no_grad():
@@ -425,10 +428,12 @@ def train(train_loader, model, optimizer, epoch, lr_schedule, queue, local_queue
                             use_the_queue = True
                             out = torch.cat((torch.mm(
                                 local_queues[i][j],
-                                getattr(model.module, "local_ptypes" + str(i)).weight.t()
+                                getattr(model.module, "local_ptypes" +
+                                        str(i)).weight.t()
                             ), out))
                         # fill the local_queue
-                        local_queues[i][j, lbs:] = local_queues[i][j, :-lbs].clone()
+                        local_queues[i][j,
+                                        lbs:] = local_queues[i][j, :-lbs].clone()
                         local_queues[i][j, :lbs] = loc_z_list[i][view_id *
                                                                  lbs: (view_id + 1) * lbs]
 
@@ -452,7 +457,8 @@ def train(train_loader, model, optimizer, epoch, lr_schedule, queue, local_queue
             for v in np.arange(np.sum(args.nmb_loc_views[i])):
                 # shape of loc_logits[v]: (batch*n_patch, 5000)
                 # Average them up to (batch, 5000) and predict the global q
-                mean_logits = concat_local_logits(loc_logits_list[i][v], bs, n_patch)
+                mean_logits = concat_local_logits(
+                    loc_logits_list[i][v], bs, n_patch)
                 logits_l2g = model.module.forward_l2g(mean_logits, i)
 
                 for g_vid in range(len(global_q)):
@@ -464,7 +470,7 @@ def train(train_loader, model, optimizer, epoch, lr_schedule, queue, local_queue
             l2g_loss /= (np.sum(args.nmb_loc_views[i])*len(global_q))
             l2g_loss_list.append(l2g_loss)
         loc_loss_sum = sum([a*l for a, l in zip(lambda1, loc_loss_list)])
-        l2g_loss_sum = sum([a*l for a, l in zip(lambda2, l2g_loss_list)])  
+        l2g_loss_sum = sum([a*l for a, l in zip(lambda2, l2g_loss_list)])
         loss = glb_loss + loc_loss_sum + l2g_loss_sum
         # ============ backward and optim step ... ============
         optimizer.zero_grad()

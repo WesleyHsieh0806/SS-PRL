@@ -152,6 +152,7 @@ class ResNet(nn.Module):
             nmb_local_ptypes=[0],
             npatch=[0],
             eval_mode=False,
+            grid_per_side=[],
     ):
         super(ResNet, self).__init__()
 
@@ -225,16 +226,17 @@ class ResNet(nn.Module):
             if output_dim == 0:
                 self.add_module("l_pro_head" + str(i), None)
             elif hidden_mlp == 0:
-                self.add_module("l_pro_head" + str(i), 
+                self.add_module("l_pro_head" + str(i),
                                 nn.Linear(num_out_filters * block.expansion, output_dim))
             else:
                 self.add_module("l_pro_head" + str(i),
-                    nn.Sequential(
-                        nn.Linear(num_out_filters * block.expansion, hidden_mlp),
-                        nn.BatchNorm1d(hidden_mlp),
-                        nn.ReLU(inplace=True),
-                        nn.Linear(hidden_mlp, output_dim),
-                    )                
+                                nn.Sequential(
+                    nn.Linear(num_out_filters *
+                              block.expansion, hidden_mlp),
+                    nn.BatchNorm1d(hidden_mlp),
+                    nn.ReLU(inplace=True),
+                    nn.Linear(hidden_mlp, output_dim),
+                )
                 )
 
         ###########
@@ -282,6 +284,9 @@ class ResNet(nn.Module):
                     nn.init.constant_(m.bn3.weight, 0)
                 elif isinstance(m, BasicBlock):
                     nn.init.constant_(m.bn2.weight, 0)
+
+        # Record the number of grids for local patches: Ex:[3,5]
+        self.grid_per_side = grid_per_side
 
     def clean_grad(self):
         for name, p in self.named_parameters():
@@ -433,10 +438,13 @@ class ResNet(nn.Module):
             start_idx = end_idx
         # Partition apart the global and local f
         local_idx_offset = -(self.nmb_local_levels + 1)
-        global_f = f[:bs * idx_crops[local_idx_offset]]
+        local_offset = idx_crops[local_idx_offset]
+        global_f = f[:bs * local_offset]
         # local_f is a list [local_f0, local_f1, ...]
-        local_f = [f[bs * idx_crops[local_idx_offset + i]:bs * idx_crops[local_idx_offset + i + 1]] 
-                                                        for i in range(self.nmb_local_levels)]
+        # local_offset = 8, grid_perside=[3,5] -> f[bs*8:bs*(8+18)]
+        local_f = [f[bs * (local_offset+2*(self.grid_per_side[i-1]**2)):bs * (local_offset + 2 * (self.grid_per_side[i]**2))]
+                   if (i != 0) else f[bs * local_offset:bs * (local_offset + 2 * (self.grid_per_side[i]**2))]
+                   for i in range(self.nmb_local_levels)]
 
         # 3. Return (global_z,global_p), ([local_z0, local_z1, ...], [local_p0, local_p1, ...]) respectively
         return self.forward_head(global_f), self.local_forward_head(local_f)
