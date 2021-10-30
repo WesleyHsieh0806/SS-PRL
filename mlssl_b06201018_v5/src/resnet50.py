@@ -438,13 +438,10 @@ class ResNet(nn.Module):
             start_idx = end_idx
         # Partition apart the global and local f
         local_idx_offset = -(self.nmb_local_levels + 1)
-        local_offset = idx_crops[local_idx_offset]
-        global_f = f[:bs * local_offset]
+        global_f = f[:bs * idx_crops[local_idx_offset]]
         # local_f is a list [local_f0, local_f1, ...]
-        # local_offset = 8, grid_perside=[3,5] -> f[bs*8:bs*(8+18)]
-        local_f = [f[bs * (local_offset+2*(self.grid_per_side[i-1]**2)):bs * (local_offset + 2 * (self.grid_per_side[i]**2))]
-                   if (i != 0) else f[bs * local_offset:bs * (local_offset + 2 * (self.grid_per_side[i]**2))]
-                   for i in range(self.nmb_local_levels)]
+        local_f = [f[bs * idx_crops[local_idx_offset + i]:bs * idx_crops[local_idx_offset + i + 1]] 
+                                                        for i in range(self.nmb_local_levels)]
 
         # 3. Return (global_z,global_p), ([local_z0, local_z1, ...], [local_p0, local_p1, ...]) respectively
         return self.forward_head(global_f), self.local_forward_head(local_f)
