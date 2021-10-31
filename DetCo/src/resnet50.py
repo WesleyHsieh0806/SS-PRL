@@ -467,7 +467,7 @@ class ResNet(nn.Module):
         glbim_q = torch.cat(inputs[0:1])
         glbim_k = torch.cat(inputs[1:2])
         locim_q = torch.cat(inputs[2:11], dim=0)
-        locim_k = torch.cat(inputs[11:18], dim=0)
+        locim_k = torch.cat(inputs[11:20], dim=0)
 
         ############
         # Obtain reps by Encoder
