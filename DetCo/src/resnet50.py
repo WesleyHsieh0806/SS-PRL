@@ -167,7 +167,7 @@ class MoResnet(nn.Module):
         replace_stride_with_dilation=None,
         norm_layer=None
     ) -> None:
-        super(ResNet, self).__init__()
+        super(MoResnet, self).__init__()
         if norm_layer is None:
             norm_layer = nn.BatchNorm2d
         self._norm_layer = norm_layer
