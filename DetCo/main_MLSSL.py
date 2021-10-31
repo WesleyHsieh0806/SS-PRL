@@ -283,8 +283,8 @@ def main():
 def train(train_loader, model, optimizer, epoch, lr_schedule, criterion, loss_weights=[0.1, 0.4, 0.7, 1.0]):
     batch_time = AverageMeter()
     data_time = AverageMeter()
-    losses_meter = [AverageMeter('Loss', ':.4e')]*12
-    total_losses_meter = AverageMeter('Loss', ':.4e')
+    losses_meter = [AverageMeter()]*12
+    total_losses_meter = AverageMeter()
 
     model.train()
 
