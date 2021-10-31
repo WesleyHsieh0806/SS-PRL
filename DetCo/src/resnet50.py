@@ -4,10 +4,13 @@
 # This source code is licensed under the license found in the
 # LICENSE file in the root directory of this source tree.
 #
+import random
 
 import ntpath
 import torch
 import torch.nn as nn
+from einops import rearrange
+from utils import concat_all_gather
 
 
 def conv3x3(in_planes, out_planes, stride=1, groups=1, dilation=1):
@@ -134,132 +137,80 @@ class Bottleneck(nn.Module):
         return out
 
 
-class ResNet(nn.Module):
-    def __init__(
-            self,
-            block,
-            layers,
-            zero_init_residual=False,
-            groups=1,
-            widen=1,
-            width_per_group=64,
-            replace_stride_with_dilation=None,
-            norm_layer=None,
-            normalize=False,
-            output_dim=0,
-            hidden_mlp=0,
-            nmb_ptypes=0,
-            nmb_local_ptypes=0,
-            npatch=0,
-            eval_mode=False,
-    ):
-        super(ResNet, self).__init__()
+class MLP(nn.Module):
 
+    def __init__(self, in_dim, out_dim, is_global=True):
+        super().__init__()
+        in_dim = in_dim if is_global else in_dim * 9
+        self.avgpool = self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
+        self.mlp = nn.Sequential(nn.Linear(in_dim, in_dim),
+                                 nn.ReLU(inplace=True),
+                                 nn.Linear(in_dim, out_dim))
+
+    def forward(self, x):
+        x = self.avgpool(x)
+        x = torch.flatten(x, 1)
+        x = self.mlp(x)
+        return x
+
+
+class ResNet(nn.Module):
+
+    def __init__(
+        self,
+        block,
+        layers,
+        num_classes: int = 128,
+        zero_init_residual: bool = False,
+        groups: int = 1,
+        width_per_group: int = 64,
+        replace_stride_with_dilation=None,
+        norm_layer=None
+    ) -> None:
+        super(ResNet, self).__init__()
         if norm_layer is None:
             norm_layer = nn.BatchNorm2d
         self._norm_layer = norm_layer
 
-        self.eval_mode = eval_mode
-        self.padding = nn.ConstantPad2d(1, 0.0)
-
-        self.inplanes = width_per_group * widen
+        self.inplanes = 64
         self.dilation = 1
         if replace_stride_with_dilation is None:
             # each element in the tuple indicates if we should replace
             # the 2x2 stride with a dilated convolution instead
             replace_stride_with_dilation = [False, False, False]
         if len(replace_stride_with_dilation) != 3:
-            raise ValueError(
-                "replace_stride_with_dilation should be None "
-                "or a 3-element tuple, got {}".format(
-                    replace_stride_with_dilation)
-            )
+            raise ValueError("replace_stride_with_dilation should be None "
+                             "or a 3-element tuple, got {}".format(replace_stride_with_dilation))
         self.groups = groups
         self.base_width = width_per_group
-
-        # change padding 3 -> 2 compared to original torchvision code because added a padding layer
-        num_out_filters = width_per_group * widen
-        self.conv1 = nn.Conv2d(
-            3, num_out_filters, kernel_size=7, stride=2, padding=2, bias=False
-        )
-        self.bn1 = norm_layer(num_out_filters)
+        self.conv1 = nn.Conv2d(3, self.inplanes, kernel_size=7, stride=2, padding=3,
+                               bias=False)
+        self.bn1 = norm_layer(self.inplanes)
         self.relu = nn.ReLU(inplace=True)
         self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
-        self.layer1 = self._make_layer(block, num_out_filters, layers[0])
-        num_out_filters *= 2
-        self.layer2 = self._make_layer(
-            block, num_out_filters, layers[1], stride=2, dilate=replace_stride_with_dilation[0]
-        )
-        num_out_filters *= 2
-        self.layer3 = self._make_layer(
-            block, num_out_filters, layers[2], stride=2, dilate=replace_stride_with_dilation[1]
-        )
-        num_out_filters *= 2
-        self.layer4 = self._make_layer(
-            block, num_out_filters, layers[3], stride=2, dilate=replace_stride_with_dilation[2]
-        )
-        self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
 
-        # normalize output features
-        self.l2norm = normalize
+        self.layer1 = self._make_layer(block, 64, layers[0])
+        self.layer2 = self._make_layer(block, 128, layers[1], stride=2,
+                                       dilate=replace_stride_with_dilation[0])
+        self.layer3 = self._make_layer(block, 256, layers[2], stride=2,
+                                       dilate=replace_stride_with_dilation[1])
+        self.layer4 = self._make_layer(block, 512, layers[3], stride=2,
+                                       dilate=replace_stride_with_dilation[2])
 
-        #############
-        # Projection head
-        ############
-        # Global projection head
-        if output_dim == 0:
-            self.projection_head = None
-        elif hidden_mlp == 0:
-            self.projection_head = nn.Linear(
-                num_out_filters * block.expansion, output_dim)
-        else:
-            self.projection_head = nn.Sequential(
-                nn.Linear(num_out_filters * block.expansion, hidden_mlp),
-                nn.BatchNorm1d(hidden_mlp),
-                nn.ReLU(inplace=True),
-                nn.Linear(hidden_mlp, output_dim),
-            )
-        # Local projection head
-        if output_dim == 0:
-            self.l_pro_head = None
-        elif hidden_mlp == 0:
-            self.l_pro_head = nn.Linear(
-                num_out_filters * block.expansion, output_dim)
-        else:
-            self.l_pro_head = nn.Sequential(
-                nn.Linear(num_out_filters * block.expansion, hidden_mlp),
-                nn.BatchNorm1d(hidden_mlp),
-                nn.ReLU(inplace=True),
-                nn.Linear(hidden_mlp, output_dim),
-            )
+        self.layers = nn.ModuleList(
+            [self.layer1, self.layer2, self.layer3, self.layer4])
 
-        ###########
-        # Construct prototype layers
-        ##########
-        # prototype layer
-        self.ptypes = None
-        if isinstance(nmb_ptypes, list):
-            self.ptypes = MultiPrototypes(output_dim, nmb_ptypes)
-        elif nmb_ptypes > 0:
-            self.ptypes = nn.Linear(output_dim, nmb_ptypes, bias=False)
-
-        # Local prototype layers
-        self.local_ptypes = None
-        if isinstance(nmb_local_ptypes, list):
-            self.local_ptypes = MultiPrototypes(output_dim, nmb_local_ptypes)
-        elif nmb_local_ptypes > 0:
-            self.local_ptypes = nn.Linear(
-                output_dim, nmb_local_ptypes, bias=False)
-        # Local2 Global prototype layer
-        self.l2g_ptypes = None
-        if (self.local_ptypes is not None) and (self.ptypes is not None):
-            self.l2g_ptypes = nn.Linear(
-                nmb_local_ptypes, nmb_ptypes, bias=False)
+        self.global_mlps, self.local_mlps = nn.ModuleList(), nn.ModuleList()
+        init_in_channels = 64 * block.expansion
+        for i in range(4):
+            self.global_mlps += [MLP(init_in_channels * 2 ** i, num_classes)]
+            self.local_mlps += [MLP(init_in_channels *
+                                    2 ** i, num_classes, False)]
 
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
                 nn.init.kaiming_normal_(
-                    m.weight, mode="fan_out", nonlinearity="relu")
+                    m.weight, mode='fan_out', nonlinearity='relu')
             elif isinstance(m, (nn.BatchNorm2d, nn.GroupNorm)):
                 nn.init.constant_(m.weight, 1)
                 nn.init.constant_(m.bias, 0)
@@ -270,33 +221,63 @@ class ResNet(nn.Module):
         if zero_init_residual:
             for m in self.modules():
                 if isinstance(m, Bottleneck):
+                    # type: ignore[arg-type]
                     nn.init.constant_(m.bn3.weight, 0)
                 elif isinstance(m, BasicBlock):
+                    # type: ignore[arg-type]
                     nn.init.constant_(m.bn2.weight, 0)
 
-    def clean_grad(self):
-        for name, p in self.named_parameters():
-            if ("ptypes" in name):
-                p.grad = None
+        # Some MoCo specific parameters
+        self.K = 65536  # (Queue size)
+        self.m = 0.999
+        self.T = 0.07
+        self.n = 8  # 4 global vectors and 4 local vectors
+        # Another encoder k
+        self.encoder_k = ResNet(block,
+                                layers,
+                                num_classes,
+                                zero_init_residual,
+                                groups,
+                                width_per_group,
+                                replace_stride_with_dilation,
+                                norm_layer=None
+                                )
 
-    def ptypes_normalize(self):
-        with torch.no_grad():
-            if self.ptypes is not None:
-                w = self.ptypes.weight.data.clone()
-                w = nn.functional.normalize(w, dim=1, p=2)
-                self.ptypes.weight.copy_(w)
+        for param_q, param_k in zip(self.parameters(), self.encoder_k.parameters()):
+            param_k.data.copy_(param_q.data)  # initialize
+            param_k.requires_grad = False  # not update by gradient
 
-            if self.local_ptypes is not None:
-                loc_w = self.local_ptypes.weight.data.clone()
-                loc_w = nn.functional.normalize(loc_w, dim=1, p=2)
-                self.local_ptypes.weight.copy_(loc_w)
+        # create the queue
+        self.register_buffer("queue", torch.randn(self.n, num_classes, self.K))
+        self.queue = nn.functional.normalize(self.queue, dim=1)
+        self.register_buffer("queue_ptr", torch.zeros(1, dtype=torch.long))
 
-            if self.l2g_ptypes is not None:
-                lg2_w = self.l2g_ptypes.weight.data.clone()
-                lg2_w = nn.functional.normalize(lg2_w, dim=1, p=2)
-                self.l2g_ptypes.weight.copy_(lg2_w)
+    @torch.no_grad()
+    def _momentum_update_key_encoder(self):
+        """
+        Momentum update of the key encoder
+        """
+        for param_q, param_k in zip(self.parameters(), self.encoder_k.parameters()):
+            param_k.data = param_k.data * self.m + param_q.data * (1. - self.m)
 
-    def _make_layer(self, block, planes, blocks, stride=1, dilate=False):
+    @torch.no_grad()
+    def _dequeue_and_enqueue(self, keys):
+        # gather keys before updating queue
+        keys = concat_all_gather(keys)
+
+        batch_size = keys.shape[0]
+
+        ptr = int(self.queue_ptr)
+        assert self.K % batch_size == 0  # for simplicity
+
+        # replace the keys at ptr (dequeue and enqueue)
+        self.queue[:, :, ptr:ptr + batch_size] = keys.permute(1, 2, 0)
+        ptr = (ptr + batch_size) % self.K  # move pointer
+
+        self.queue_ptr[0] = ptr
+
+    def _make_layer(self, block, planes: int, blocks: int,
+                    stride: int = 1, dilate: bool = False) -> nn.Sequential:
         norm_layer = self._norm_layer
         downsample = None
         previous_dilation = self.dilation
@@ -310,80 +291,32 @@ class ResNet(nn.Module):
             )
 
         layers = []
-        layers.append(
-            block(
-                self.inplanes,
-                planes,
-                stride,
-                downsample,
-                self.groups,
-                self.base_width,
-                previous_dilation,
-                norm_layer,
-            )
-        )
+        layers.append(block(self.inplanes, planes, stride, downsample, self.groups,
+                            self.base_width, previous_dilation, norm_layer))
         self.inplanes = planes * block.expansion
         for _ in range(1, blocks):
-            layers.append(
-                block(
-                    self.inplanes,
-                    planes,
-                    groups=self.groups,
-                    base_width=self.base_width,
-                    dilation=self.dilation,
-                    norm_layer=norm_layer,
-                )
-            )
+            layers.append(block(self.inplanes, planes, groups=self.groups,
+                                base_width=self.base_width, dilation=self.dilation,
+                                norm_layer=norm_layer))
 
         return nn.Sequential(*layers)
 
-    def forward_backbone(self, x):
-        x = self.padding(x)
-
+    def _forward_impl(self, x, is_global=True):
         x = self.conv1(x)
         x = self.bn1(x)
         x = self.relu(x)
         x = self.maxpool(x)
-        x = self.layer1(x)
-        x = self.layer2(x)
-        x = self.layer3(x)
-        x = self.layer4(x)
 
-        if self.eval_mode:
-            return x
+        mlps = self.global_mlps if is_global else self.local_mlps
 
-        x = self.avgpool(x)
-        x = torch.flatten(x, 1)
+        reps = []
+        for layer, mlp in zip(self.layers, mlps):
+            x = layer(x)  # (Batch, c, h, w) or (9*Batch, c, h, w)
+            x1 = rearrange(x, '(n b) c h w -> b (n c) h w',
+                           n=1 if is_global else 9)
+            reps += [mlp(x1)]
 
-        return x
-
-    def forward_head(self, x):
-        if self.projection_head is not None:
-            x = self.projection_head(x)
-
-        if self.l2norm:
-            x = nn.functional.normalize(x, dim=1, p=2)
-
-        if self.ptypes is not None:
-            return x, self.ptypes(x)
-        return x
-
-    def local_forward_head(self, x):
-        if self.l_pro_head is not None:
-            x = self.l_pro_head(x)
-
-        if self.l2norm:
-            x = nn.functional.normalize(x, dim=1, p=2)
-
-        if self.local_ptypes is not None:
-            return x, self.local_ptypes(x)
-        return x
-
-    def forward_l2g(self, loc_cat_logits):
-        if self.l2norm:
-            loc_cat_logits = nn.functional.normalize(
-                loc_cat_logits, dim=1, p=2)
-        return self.l2g_ptypes(loc_cat_logits)
+        return torch.stack(reps, dim=1)
 
     def forward(self, inputs):
         # Dataset returns list(Sequence), so the inputs produced by Dataloader are also lists
@@ -391,48 +324,62 @@ class ResNet(nn.Module):
         if not isinstance(inputs, list):
             inputs = [inputs]
 
-        # [224,224,96,96,96,96,96,96,65,....,65] ->[2,6,18](nof of consecutive unique values) ->[2,8,26](cumulative sum)
-        idx_crops = torch.cumsum(torch.unique_consecutive(
-            torch.tensor([inp.shape[-1] for inp in inputs]),
-            return_counts=True,
-        )[1], 0)
-        start_idx = 0
-        bs = inputs[0].shape[0]  # batch size
+        glbim_q = torch.cat(inputs[0:1])
+        glbim_k = torch.cat(inputs[1:2])
+        locim_q = torch.cat(inputs[2:11], dim=0)
+        locim_k = torch.cat(inputs[11:18], dim=0)
 
         ############
-        # Obtain f by Encoder
+        # Obtain reps by Encoder
         ############
-        for end_idx in idx_crops:
-            # torch.cat( [(Batch,3,224,224), (Batch,3,224,224)] ) -> Tensor(Batch*2, 3, 224, 224)
-            _out = self.forward_backbone(
-                torch.cat(inputs[start_idx: end_idx]).cuda(non_blocking=True))
-            # _out corresponds to f in the paper
-            if start_idx == 0:
-                f = _out
-            else:
-                f = torch.cat((f, _out))
-            start_idx = end_idx
-        # Partition apart the global and local f
-        global_f = f[:bs*idx_crops[-2]]
-        local_f = f[bs*idx_crops[-2]:]
 
-        # 3. Return (global_z,global_p), (local_z, local_p) respectively
-        return self.forward_head(global_f), self.local_forward_head(local_f)
+        global_q = self._forward_impl(
+            glbim_q.cuda(non_blocking=True))  # (Batch, 4, 128)
+        local_q = self._forward_impl(
+            locim_q.cuda(non_blocking=True), False)  # (Batch, 4, 128)
+        q = torch.cat([global_q, local_q], dim=1)  # (Batch, 8, 128)
+        # Normalization
+        q = nn.functional.normalize(q, dim=2)
 
+        # compute key features
+        with torch.no_grad():  # no gradient to keys
+            self._momentum_update_key_encoder()  # update the key encoder
 
-class MultiPrototypes(nn.Module):
-    def __init__(self, output_dim, nmb_ptypes):
-        super(MultiPrototypes, self).__init__()
-        self.nmb_heads = len(nmb_ptypes)
-        for i, k in enumerate(nmb_ptypes):
-            self.add_module("ptypes" + str(i),
-                            nn.Linear(output_dim, k, bias=False))
+            global_k = self.encoder_k._forward_impl(
+                glbim_k.cuda(non_blocking=True))  # (Batch, 4, 128)
+            local_k = self.encoder_k._forward_impl(
+                locim_k.cuda(non_blocking=True), False)  # (Batch, 4, 128)
+            k = torch.cat([global_k, local_k], dim=1)  # (Batch, 8, 128)
+            k = nn.functional.normalize(k, dim=2)
 
-    def forward(self, x):
-        out = []
-        for i in range(self.nmb_heads):
-            out.append(getattr(self, "ptypes" + str(i))(x))
-        return out
+        # compute logits
+        # Einstein sum is more intuitive
+        # g2g and l2l logits as shown in Fig.4(b) of DetCo paper
+        queue = self.queue.clone().detach()
+        l_pos = torch.einsum('bnw,bnw->bn', [q, k]).unsqueeze(2)
+        l_neg = torch.einsum('bnw,nwk->bnk', [q, queue])
+
+        # l2g logits
+        l_pos_cross = torch.einsum(
+            'bnw,bnw->bn', [q[:, 4:, :], k[:, :4, :]]).unsqueeze(2)
+        l_neg_cross = torch.einsum(
+            'bnw,nwk->bnk', [q[:, 4:, :], queue[:4, :, :]])
+
+        l_pos = torch.cat([l_pos, l_pos_cross], dim=1)
+        l_neg = torch.cat([l_neg, l_neg_cross], dim=1)
+
+        # logits: BxNx(1+K)
+        logits = torch.cat([l_pos, l_neg], dim=2)
+
+        # apply temperature
+        logits /= self.T
+
+        # labels: positive key indicators
+        labels = torch.zeros(logits.shape[:2], dtype=torch.long).cuda()
+
+        # dequeue and enqueue
+        self._dequeue_and_enqueue(k)
+        return logits, labels
 
 
 def resnet50(**kwargs):

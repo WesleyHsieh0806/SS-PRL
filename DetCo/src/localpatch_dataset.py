@@ -97,7 +97,7 @@ class JigsawDataset(datasets.ImageFolder):
         '''
         local_img = self.rsbf_local(img)
 
-        # To permute the order for local patched, we use torch.randperm here
+        # To permute the order for local patches, we use torch.randperm here
         x_order = torch.randperm(
             self.grid_perside) if random_order else range(self.grid_perside)
         y_order = torch.randperm(

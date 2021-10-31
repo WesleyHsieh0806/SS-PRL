@@ -85,6 +85,18 @@ parser.add_argument("--epoch_queue_starts", type=int, default=15,
 parser.add_argument("--grid_perside", type=int, default=3,
                     help="Number of grids per side for local images.")
 
+# detco specific configs:
+parser.add_argument('--detco-dim', default=128, type=int,
+                    help='feature dimension (default: 128)')
+parser.add_argument('--detco-k', default=65536, type=int,
+                    help='queue size; number of negative keys (default: 65536)')
+parser.add_argument('--detco-m', default=0.999, type=float,
+                    help='detco momentum of updating key encoder (default: 0.999)')
+parser.add_argument('--detco-t', default=0.07, type=float,
+                    help='softmax temperature (default: 0.07)')
+parser.add_argument('--detco-weightslist', default=[0.1, 0.4, 0.7, 1.0], type=list,
+                    help='The lambda for each intermediate loss')
+
 #########################
 #### optim parameters ###
 #########################
@@ -146,7 +158,7 @@ def main():
     fix_random_seeds(args.seed)
     # logger: such as log files and consoles training_stats: save logs into pickle files
     logger, training_stats = initialize_exp(
-        args, "epoch", "loss", "glb", "loc", "l2g")
+        args, "epoch", "total_loss")
 
     # build data
     train_dataset = JigsawDataset(
@@ -174,12 +186,7 @@ def main():
     # build model
     # .__dict__ returns the dictionary of this package, all the functions/classes can be called by .__dict__[func name]
     model = resnet_models.__dict__[args.arch](
-        normalize=True,
-        hidden_mlp=args.hidden_mlp,
-        output_dim=args.feat_dim,
-        nmb_ptypes=args.nmb_ptypes,
-        nmb_local_ptypes=args.nmb_local_ptypes,
-        npatch=(args.grid_perside**2),
+        args.detco_dim, args.detco_k, args.detco_m, args.detco_t
     )
     # synchronize batch norm layers
     if args.sync_bn == "pytorch":
@@ -236,32 +243,8 @@ def main():
     )
     start_epoch = to_restore["epoch"]
 
-    ''' ************
-    * Queues
-    *****************
-    '''
-    # build the queue
-    queue = None
-    queue_path = os.path.join(
-        args.dump_path, "queue" + str(args.rank) + ".pth")
-    if os.path.isfile(queue_path):
-        queue = torch.load(queue_path)["queue"]
-    # the queue needs to be divisible by the batch size
-    args.queue_length -= args.queue_length % (
-        args.batch_size * args.world_size)
-
-    # build the local queue
-    local_queue = None
-    local_queue_path = os.path.join(
-        args.dump_path, "local_queue" + str(args.rank) + ".pth")
-    if os.path.isfile(local_queue_path):
-        local_queue = torch.load(local_queue_path)["local_queue"]
-    # the queue needs to be divisible by the batch size
-    args.local_queue_length -= args.local_queue_length % (
-        args.batch_size * args.world_size)
-
     cudnn.benchmark = True
-
+    criterion = nn.CrossEntropyLoss().cuda()
     for epoch in range(start_epoch, args.epochs):
 
         # train the network for one epoch
@@ -270,27 +253,9 @@ def main():
         # set sampler
         train_loader.sampler.set_epoch(epoch)
 
-        '''
-        * Start Queues (Optional)
-        '''
-        # Global Queues
-        if args.queue_length > 0 and epoch >= args.epoch_queue_starts and queue is None:
-            queue = torch.zeros(
-                len(args.crops_for_assign),
-                args.queue_length // args.world_size,
-                args.feat_dim,
-            ).cuda()
-        # Local Queues
-        if args.local_queue_length > 0 and epoch >= args.epoch_queue_starts and local_queue is None:
-            local_queue = torch.zeros(
-                len(args.loc_view_for_assign),
-                args.local_queue_length // args.world_size,
-                args.feat_dim,
-            ).cuda()
-
         # train the network
-        scores, queue, local_queue = train(train_loader, model,
-                                           optimizer, epoch, lr_schedule, queue, local_queue)
+        scores = train(train_loader, model,
+                       optimizer, epoch, lr_schedule, criterion=criterion, loss_weights=args.detco_weightslist)
         # the scores include epoch and loss
         training_stats.update(scores)
 
@@ -313,24 +278,20 @@ def main():
                     os.path.join(args.dump_checkpoints,
                                  "ckp-" + str(epoch) + ".pth"),
                 )
-        if queue is not None:
-            torch.save({"queue": queue}, queue_path)
-        if local_queue is not None:
-            torch.save({"local_queue": local_queue}, local_queue_path)
 
 
-def train(train_loader, model, optimizer, epoch, lr_schedule, queue, local_queue, lambda1=0.5, lambda2=1.0):
+def train(train_loader, model, optimizer, epoch, lr_schedule, criterion, loss_weights=[0.1, 0.4, 0.7, 1.0]):
     batch_time = AverageMeter()
     data_time = AverageMeter()
-    losses = AverageMeter()
-    glb_losses = AverageMeter()
-    loc_losses = AverageMeter()
-    l2g_losses = AverageMeter()
+    losses_meter = [AverageMeter('Loss', ':.4e')]*12
+    total_losses_meter = AverageMeter('Loss', ':.4e')
 
     model.train()
-    use_the_queue = False
 
     end = time.time()
+    mean_total_loss = 0
+    # 4 global losses, 4 local losses, 4 local-global losses
+    mean_losses = [0]*12
     for it, inputs in enumerate(train_loader):
         # measure data loading time
         data_time.update(time.time() - end)
@@ -340,123 +301,34 @@ def train(train_loader, model, optimizer, epoch, lr_schedule, queue, local_queue
         for param_group in optimizer.param_groups:
             param_group["lr"] = lr_schedule[iteration]
 
-        # normalize the prototypes
-        with torch.no_grad():
-            # in DDP, use .module before calling functions
-            model.module.ptypes_normalize()
-
         # ============ multi-res forward passes ... ============
-        (glb_z, glb_logits), (loc_z, loc_logits) = model(inputs)
-        glb_z = glb_z.detach()
-        loc_z = loc_z.detach()
+        output, target = model(inputs)
         bs = inputs[0].size(0)
 
-        # ============ Global ML-SSL loss ... ============
-        glb_loss = 0
-        global_q = []
-        for i, view_id in enumerate(args.crops_for_assign):
-            # view_id is the index of view to be predicted
-            with torch.no_grad():
-                out = glb_logits[bs * view_id: bs * (view_id + 1)].detach()
+        # compute output (Batch, 12, 1+K), where K denotes the queue size
+        # first 4 losses for g2g, 5~8 for l2l, the last 4 for l2g
+        losses = [criterion(output[:, i, :], target[:, i]) for i in range(12)]
+        total_loss = sum(loss * loss_weights[i % 4]
+                         for i, loss in enumerate(losses))
 
-                # time to use the queue
-                if queue is not None:
-                    if use_the_queue or not torch.all(queue[i, -1, :] == 0):
-                        use_the_queue = True
-                        out = torch.cat((torch.mm(
-                            queue[i],
-                            model.module.ptypes.weight.t()
-                        ), out))
-                    # fill the queue
-                    queue[i, bs:] = queue[i, :-bs].clone()
-                    queue[i, :bs] = glb_z[view_id * bs: (view_id + 1) * bs]
+        # loss stats
+        mean_losses = [x + y for x, y in zip(mean_losses, losses)]
+        mean_total_loss += total_loss
 
-                # get assignments
-                q = distributed_sinkhorn(out)[-bs:]
-                global_q.append(q)
-
-            # cluster assignment prediction
-            subloss = 0
-            for v in np.delete(np.arange(np.sum(args.nmb_crops)), view_id):
-                x = glb_logits[bs * v: bs * (v + 1)] / args.temperature
-                subloss -= torch.mean(torch.sum(q *
-                                                F.log_softmax(x, dim=1), dim=1))
-            glb_loss += subloss / (np.sum(args.nmb_crops) - 1)
-        glb_loss /= len(args.crops_for_assign)
-
-        # ============ Local ML-SSL loss ... ============
-        loc_loss = 0
-        n_patch = (loc_logits.shape[0]//bs)//2
-        lbs = bs * n_patch
-        # reshape the logits for later loss computation
-        # original shape:(bs*npatch*2, nmb_locptypes)
-        loc_logits = loc_logits.reshape([2, lbs, loc_logits.shape[-1]])
-
-        for i, view_id in enumerate(args.loc_view_for_assign):
-            with torch.no_grad():
-                out = loc_logits[view_id].detach()
-
-                # time to use the queue
-                if local_queue is not None:
-                    if use_the_queue or not torch.all(local_queue[i, -1, :] == 0):
-                        use_the_queue = True
-                        out = torch.cat((torch.mm(
-                            local_queue[i],
-                            model.module.local_ptypes.weight.t()
-                        ), out))
-                    # fill the local_queue
-                    local_queue[i, lbs:] = local_queue[i, :-lbs].clone()
-                    local_queue[i, :lbs] = loc_z[view_id *
-                                                 lbs: (view_id + 1) * lbs]
-
-                # get assignments
-                loc_q = distributed_sinkhorn(out)[-lbs:]
-
-            # cluster assignment prediction for local patches
-            subloss = 0
-            for v in np.delete(np.arange(np.sum(args.nmb_loc_views)), view_id):
-                # Notice that loc_logits[0][0~bs*n_patch-1] corresponds to loc_logits[1][0~bs*n_patch-1],
-                # so we can compare p,q directly
-                x = loc_logits[v] / args.temperature
-                subloss -= torch.mean(torch.sum(loc_q *
-                                                F.log_softmax(x, dim=1), dim=1))
-            loc_loss += subloss / (np.sum(args.nmb_loc_views) - 1)
-        loc_loss /= (len(args.loc_view_for_assign))
-
-        # ============ Local2 Global ML-SSL loss ... ============
-        l2g_loss = 0
-        for v in np.arange(np.sum(args.nmb_loc_views)):
-            # shape of loc_logits[v]: (batch*n_patch, 5000)
-            # Average them up to (batch, 5000) and predict the global q
-            mean_logits = concat_local_logits(loc_logits[v], bs, n_patch)
-            logits_l2g = model.module.forward_l2g(mean_logits)
-
-            for g_vid in range(len(global_q)):
-                # Predict the clustering assignment of both gobal view
-                q_vid = global_q[g_vid]
-                p_l2g = logits_l2g / args.temperature
-                l2g_loss -= torch.mean(torch.sum(q_vid *
-                                                 F.log_softmax(p_l2g, dim=1), dim=1))
-        l2g_loss /= (np.sum(args.nmb_loc_views)*len(global_q))
-
-        loss = glb_loss + lambda1*loc_loss + lambda2*l2g_loss
         # ============ backward and optim step ... ============
         optimizer.zero_grad()
         if args.use_fp16:
-            with apex.amp.scale_loss(loss, optimizer) as scaled_loss:
+            with apex.amp.scale_loss(total_loss, optimizer) as scaled_loss:
                 scaled_loss.backward()
         else:
-            loss.backward()
-        # cancel gradients for the prototypes
-        if iteration < args.freeze_prototypes_niters:
-            model.module.clean_grad()
+            total_loss.backward()
         optimizer.step()
 
         # ============ misc ... ============
-        losses.update(loss.item(), inputs[0].size(0))
-        glb_losses.update(glb_loss.item(), inputs[0].size(0))
-        loc_losses.update(loc_loss.item(), inputs[0].size(0))
-        l2g_losses.update(l2g_loss.item(), inputs[0].size(0))
+        # measure accuracy and record loss
+        total_losses_meter.update(total_loss.item(), inputs[0].size(0))
+        for i in range(12):
+            losses_meter[i].update(losses[i].item(), inputs[0].size(0))
         batch_time.update(time.time() - end)
         end = time.time()
         if args.rank == 0 and it % 50 == 0:
@@ -465,49 +337,16 @@ def train(train_loader, model, optimizer, epoch, lr_schedule, queue, local_queue
                 "Time {batch_time.val:.3f} ({batch_time.avg:.3f})\t"
                 "Data {data_time.val:.3f} ({data_time.avg:.3f})\t"
                 "Loss {loss.val:.4f} ({loss.avg:.4f})\t"
-                "GLB {glb_loss.val:.4f} ({glb_loss.avg:.4f})\t"
-                "LOC {loc_loss.val:.4f} ({loc_loss.avg:.4f})\t"
-                "L2G {l2g_loss.val:.4f} ({l2g_loss.avg:.4f})\t"
                 "Lr: {lr:.4f}".format(
                     epoch,
                     it,
                     batch_time=batch_time,
                     data_time=data_time,
-                    loss=losses,
-                    glb_loss=glb_losses,
-                    loc_loss=loc_losses,
-                    l2g_loss=l2g_losses,
+                    loss=total_loss,
                     lr=optimizer.optim.param_groups[0]["lr"],
                 )
             )
-    return (epoch, losses.avg, glb_losses.avg, loc_losses.avg, l2g_losses.avg), queue, local_queue
-
-
-@torch.no_grad()
-def distributed_sinkhorn(out):
-    # Q is K-by-B for consistency with notations from our paper
-    Q = torch.exp(out / args.epsilon).t()
-    B = Q.shape[1] * args.world_size  # number of samples to assign
-    K = Q.shape[0]  # how many prototypes
-
-    # make the matrix sums to 1
-    sum_Q = torch.sum(Q)
-    dist.all_reduce(sum_Q)
-    Q /= sum_Q
-
-    for it in range(args.sinkhorn_iterations):
-        # normalize each row: total weight per prototype must be 1/K
-        sum_of_rows = torch.sum(Q, dim=1, keepdim=True)
-        dist.all_reduce(sum_of_rows)
-        Q /= sum_of_rows
-        Q /= K
-
-        # normalize each column: total weight per sample must be 1/B
-        Q /= torch.sum(Q, dim=0, keepdim=True)
-        Q /= B
-
-    Q *= B  # the colomns must sum to 1 so that Q is an assignment
-    return Q.t()
+    return (epoch, losses.avg, total_losses_meter.avg)
 
 
 if __name__ == "__main__":

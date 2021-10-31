@@ -220,3 +220,19 @@ def concat_local_logits(logits, bs, npatch):
     concat_feature = logits.reshape([npatch, bs, nmb_lptypes]).permute(
         1, 0, 2).mean(dim=1)
     return concat_feature
+
+# utils
+
+
+@torch.no_grad()
+def concat_all_gather(tensor):
+    """
+    Performs all_gather operation on the provided tensors.
+    *** Warning ***: torch.distributed.all_gather has no gradient.
+    """
+    tensors_gather = [torch.ones_like(tensor)
+                      for _ in range(torch.distributed.get_world_size())]
+    torch.distributed.all_gather(tensors_gather, tensor, async_op=False)
+
+    output = torch.cat(tensors_gather, dim=0)
+    return output
