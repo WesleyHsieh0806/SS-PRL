@@ -186,7 +186,7 @@ def main():
     # build model
     # .__dict__ returns the dictionary of this package, all the functions/classes can be called by .__dict__[func name]
     model = resnet_models.__dict__[args.arch](
-        args.detco_dim, args.detco_k, args.detco_m, args.detco_t
+        #args.detco_dim, args.detco_k, args.detco_m, args.detco_t
     )
     # synchronize batch norm layers
     if args.sync_bn == "pytorch":
