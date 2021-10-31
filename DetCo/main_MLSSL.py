@@ -94,7 +94,7 @@ parser.add_argument('--detco-m', default=0.999, type=float,
                     help='detco momentum of updating key encoder (default: 0.999)')
 parser.add_argument('--detco-t', default=0.07, type=float,
                     help='softmax temperature (default: 0.07)')
-parser.add_argument('--detco-weightslist', default=[0.1, 0.4, 0.7, 1.0], type=list,
+parser.add_argument('--detco-weightslist', default=[0.1, 0.4, 0.7, 1.0], type=float, nargs="+",
                     help='The lambda for each intermediate loss')
 
 #########################

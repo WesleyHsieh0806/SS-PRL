@@ -39,7 +39,7 @@ class JigsawDataset(datasets.ImageFolder):
 
         # size_crops:[224, 96] loc_size_crops:[255]
         # Error checking
-        assert len(size_crops) == 2
+        assert len(size_crops) == 1
         assert len(loc_size_crops) == 1
         assert len(size_crops) == len(nmb_crops)
         assert len(loc_size_crops) == len(nmb_loc_views)

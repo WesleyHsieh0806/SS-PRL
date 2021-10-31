@@ -10,7 +10,7 @@ import ntpath
 import torch
 import torch.nn as nn
 from einops import rearrange
-from utils import concat_all_gather
+from .utils import concat_all_gather
 
 
 def conv3x3(in_planes, out_planes, stride=1, groups=1, dilation=1):
