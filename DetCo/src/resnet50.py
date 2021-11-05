@@ -386,7 +386,8 @@ class ResNet(nn.Module):
         for param_q, param_k in zip(self.parameters(), self.encoder_k.parameters()):
             param_k.data.copy_(param_q.data)  # initialize
             param_k.requires_grad = False  # not update by gradient
-            print("Hi")
+        for name, parm in self.named_parameters():
+            print(name)
 
         # create the queue
         self.register_buffer("queue", torch.randn(self.n, num_classes, self.K))
