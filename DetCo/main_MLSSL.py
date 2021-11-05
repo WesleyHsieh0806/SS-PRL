@@ -342,11 +342,11 @@ def train(train_loader, model, optimizer, epoch, lr_schedule, criterion, loss_we
                     it,
                     batch_time=batch_time,
                     data_time=data_time,
-                    loss=total_loss,
+                    loss=total_losses_meter,
                     lr=optimizer.optim.param_groups[0]["lr"],
                 )
             )
-    return (epoch, losses.avg, total_losses_meter.avg)
+    return (epoch, total_losses_meter.avg)
 
 
 if __name__ == "__main__":
