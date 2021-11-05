@@ -4,18 +4,18 @@
 #PBS -l walltime=24:00:00
 
 ############### 1. modify the name of vir-env
-source activate b06901053_swav
-cd $PBS_O_WORKDIR
-module load cuda/cuda-10.0/x86_64
+#source activate b06901053_swav
+#cd $PBS_O_WORKDIR
+#module load cuda/cuda-10.0/x86_64
 
 ###################### 2. Modify the data path
 DATASET_PATH="../COCO/tmp_root"
 EXPERIMENT_PATH="./experiments/MLSSL_v2_200ep_bs128"
 mkdir -p $EXPERIMENT_PATH
 EPOCH=200
-BATCH_PERGPU=64
+BATCH_PERGPU=128
 
-python -m torch.distributed.launch --nproc_per_node=4 --master_port 29501 main_MLSSL.py \
+python -m torch.distributed.launch --nproc_per_node=1 --master_port 29501 main_MLSSL.py \
 --data_path $DATASET_PATH \
 --nmb_crops 2 \
 --nmb_loc_views 2 \
@@ -45,4 +45,4 @@ python -m torch.distributed.launch --nproc_per_node=4 --master_port 29501 main_M
 ###
 
 
-conda deactivate
+#conda deactivate
