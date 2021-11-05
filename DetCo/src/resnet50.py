@@ -383,11 +383,11 @@ class ResNet(nn.Module):
                                   norm_layer=None
                                   )
 
-        for param_q, param_k in zip(self.parameters(), self.encoder_k.parameters()):
-            param_k.data.copy_(param_q.data)  # initialize
-            param_k.requires_grad = False  # not update by gradient
-        for name, parm in self.named_parameters():
-            print(name)
+        for (name, param_q), param_k in zip(self.named_parameters(), self.encoder_k.parameters()):
+            if "encoder_k" not in name:
+                print(name)
+                param_k.data.copy_(param_q.data)  # initialize
+                param_k.requires_grad = False  # not update by gradient
 
         # create the queue
         self.register_buffer("queue", torch.randn(self.n, num_classes, self.K))
