@@ -31,7 +31,7 @@ def main():
         state_dict = {}
         for k, v in org_state_dict.items():
             if ("encoder_q" in k) and ("mlp" not in k):
-                state_dict[k.replace("encoder_q.", "")] = v
+                state_dict[k.replace("encoder_q.module.", "")] = v
 
         # Check whether the module is the same as DenseCL
         densecl_state = torch.load(args.model)["state_dict"]
