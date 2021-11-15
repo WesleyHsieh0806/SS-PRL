@@ -30,7 +30,7 @@ def main():
         # Remove module and projection head
         state_dict = {}
         for k, v in org_state_dict.items():
-            if ("projection" not in k) and ("prototype" not in k):
+            if ("head" not in k) and ("ptypes" not in k):
                 state_dict[k.replace("module.", "")] = v
 
         # Check whether the module is the same as DenseCL
