@@ -30,8 +30,18 @@ def main():
         # Remove module and projection head
         state_dict = {}
         for k, v in org_state_dict.items():
-            if ("head" not in k) and ("ptypes" not in k):
-                state_dict[k.replace("module.", "")] = v
+            if ("swav" in args.pretrained.lower()) or ("ssprl" in args.pretrained.lower()):
+                if ("head" not in k) and ("ptypes" not in k) and (("prototypes" not in k)):
+                    state_dict[k.replace("module.", "")] = v
+            if ("moco" in args.pretrained.lower()):
+                if ("encoder_q.0." in k):
+                    state_dict[k.replace("encoder_q.0.", "")] = v
+            if ("densecl" in args.pretrained.lower()):
+                if ("encoder_q.0." in k):
+                    state_dict[k.replace("encoder_q.0.", "")] = v
+            if ("byol" in args.pretrained.lower()):
+                if ("online_net.0." in k) and ("mlp" not in k):
+                    state_dict[k.replace("online_net.0.", "")] = v
 
         # Check whether the module is the same as DenseCL
         densecl_state = torch.load(args.model)["state_dict"]
