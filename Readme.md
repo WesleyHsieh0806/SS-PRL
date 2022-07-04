@@ -1,5 +1,5 @@
 ## :books: Prepare Dataset
-   Please refer to [Pretrained_Dataset](./Pretrained_Dataset.md) and [Downstream Tasks](https://github.com/WesleyHsieh0806/SS-PRL/edit/master/Readme.md#bicyclist-downstream-tasks) for further details.
+   Please refer to [Pretrained_Dataset](./Pretrained_Dataset.md) and [Downstream Tasks](#bicyclist-downstream-tasks) for further details.
    
    | Tasks | Datasets:point_down: |
    | - | - | 
