@@ -4,16 +4,26 @@
     ```bash 
     ./get_premodel.sh
     ```
-2. Change swav pretrained models into the same format as DenseCL 
+2. Change pretrained models into the same format as DenseCL 
 (We use the same setting as DenseCL in Semantic Segmentation)
+
+    The framework listed below are covered in this python script:
+    * [SwAV](https://github.com/facebookresearch/swav)
+    * [MoCo](https://github.com/facebookresearch/moco)
+    * [DenseCL](https://github.com/WXinlong/DenseCL)
+    * [BYOL](https://github.com/deepmind/deepmind-research/tree/master/byol)
+    * [InsLoc](https://github.com/limbo0000/InstanceLoc)
+    * [MaskCo](https://openaccess.thecvf.com/content/ICCV2021/html/Zhao_Self-Supervised_Visual_Representations_Learning_by_Contrastive_Mask_Prediction_ICCV_2021_paper.html)
+    * [DetCo](https://scholar.google.com/scholar_url?url=http://openaccess.thecvf.com/content/ICCV2021/html/Xie_DetCo_Unsupervised_Contrastive_Learning_for_Object_Detection_ICCV_2021_paper.html&hl=zh-TW&sa=T&oi=gsb&ct=res&cd=0&d=8124073977598762954&ei=pbbCYrbwIMKM6rQP4NW28AU&scisig=AAGBfm0HSaylYjW3Py2zZuwpBf9JdfVLNQ) (modify_DetCo_models.py)
+    
     ```bash
     # In this python script, we remove weights of projection and prototype 
-    # Also, all the prefix 'module' are removed
-    python modify_swav_models.py --pretrained ${ORG_Model} --model ${Dense_Model} --newmodel ${MODIFY_Model}
+    # Also, all the unecessary module names are removed
+    python modify_models.py --pretrained ${ORG_Model} --model ${Dense_Model} --newmodel ${MODIFY_Model}
     ```
     ***${ORG_Model}*** : path of the original pretrained model
 
-    ***${Dense_Model}*** : path of the DenseCL pretrained model
+    ***${Dense_Model}*** : path of the DenseCL pretrained model (this file is used for format checking)
 
     ***${MODIFY_Model}*** : path of the Modified models
 -------
@@ -45,5 +55,5 @@ You can also refer to [DenseCL](https://github.com/WXinlong/DenseCL/blob/main/be
 3. Modify the settings in [shell scripts](mmsegmentation/Segmentation_train.sh)
 4. Start Training
     ``` bash
-    qsub Segmentation_train.sh
+    bash Segmentation_train.sh
     ```
