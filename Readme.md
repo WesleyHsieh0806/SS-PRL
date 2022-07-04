@@ -1,14 +1,14 @@
-# Prepare Dataset
-## Mini-ImageNet
+## Prepare Dataset
+### Mini-ImageNet
    Use and modify [get_MiniImageNet.sh](./get_MiniImageNet.sh) according to the descriptions
 
-## Mini-COCO
+### Mini-COCO
 Use and modify [get_MiniCOCO.sh](./get_MiniCOCO.sh) according to the descriptions
 * Requirements: 
    * wget
    * pycocotools
 
-## ImageNet
+### ImageNet
 Download Imagenet
 1.  Obtain the following files at [Image-net.org](https://image-net.org/index.php)
     * **ILSVRC2012_img_train.tar**
