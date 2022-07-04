@@ -2,3 +2,4 @@ data
 *.pth
 Data
 mmsegmentation
+logs
