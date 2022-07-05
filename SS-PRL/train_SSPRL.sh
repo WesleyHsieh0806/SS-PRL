@@ -4,7 +4,7 @@
 # In short, several arguments related to local prototypes are changed to lists.
 
 DATASET_PATH="/work/b06901053/SSPRL/COCO/tmp_root"
-EXPERIMENT_PATH="./logs/SSPRL_grid2+3_lambda0.25_lptype300150150_locsize11296"
+EXPERIMENT_PATH="./logs/"
 mkdir -p $EXPERIMENT_PATH
 
 EPOCH=200
@@ -12,7 +12,7 @@ BATCH_PERGPU=64
 LAMBDA1="0.25 0.25"
 LAMBDA2="0.25 0.25"
 
-CUDA_VISIBLE_DEVICES=0 python -m torch.distributed.launch --nproc_per_node=1 --master_port 29502  main_SSPRL.py \
+CUDA_VISIBLE_DEVICES=0,1 python -m torch.distributed.launch --nproc_per_node=2 --master_port 29502  main_SSPRL.py \
 --data_path $DATASET_PATH \
 --workers 4 \
 --nmb_crops 2 6 \
