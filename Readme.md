@@ -68,7 +68,7 @@ Todo
    ```
 2. Transferring to Multi-Label Visual Analysis tasks:
 
-   Please Refer to Readme files for [Classification](./benchmarks/classification), [Object-Detection](./benchmarks/detection), and [Semantic Segmentation]((./benchmarks/Segmentation)) tasks.
+   Please Refer to Readme files for [Classification](./benchmarks/classification), [Object-Detection](./benchmarks/detection), and [Semantic Segmentation](https://github.com/WesleyHsieh0806/SS-PRL/tree/master/benchmarks/Segmentation) tasks.
 
 ## Citations
 ``` bash
