@@ -47,7 +47,32 @@
    | Downstream | [Pascal VOC](http://host.robots.ox.ac.uk/pascal/VOC/) <br> [COCO](https://cocodataset.org/#home) |
 
 ## :running: Usage - Training
-Todo
+### Requirements
+- Python 3.6
+- [PyTorch](http://pytorch.org) = 1.4.0
+- torchvision = 0.5.0
+- CUDA 10.1 (Check with nvcc --version)
+- [Apex 0.1](https://github.com/NVIDIA/apex) ([Installation](https://github.com/facebookresearch/swav/issues/18#issuecomment-748123838))
+- scipy, pandas, numpy
+   
+``` bash
+conda install pytorch==1.4.0 torchvision==0.5.0 cudatoolkit=10.1 -c pytorch
+
+git clone "https://github.com/NVIDIA/apex"
+cd apex
+git checkout 4a1aa97e31ca87514e17c3cd3bbc03f4204579d0
+python setup.py install --cuda_ext
+```
+### Training with the [shell script](./SS-PRL/train_SSPRL.sh).
+   For further details, take a look at the [source file](./SS-PRL/main_SSPRL.py) | [dataset definition](./SS-PRL/src/localpatch_dataset.py) | [utilities](./SS-PRL/src/utils.py)
+   ``` bash
+   # Training Checklist:
+   # 1. modify the DATASET_PATH and EXPERIMENT_PATH in the script
+   # 2. BATCH_PER_GPU denotes the batch size per gpu, while --nproc_per_node denotes the number of gpus
+   # 3. modify the parameters
+   cd SS-PRL
+   bash train_SSPRL.sh
+   ```
 
 
 ## :bicyclist: Downstream tasks
