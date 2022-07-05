@@ -1,3 +1,43 @@
+# Self-Supervised Pyramid Representation Learning <br>for Multi-Label Visual Analysis
+
+   This repository provides the official Pytorch implementation of pretraining and downstream evaluations for **SS-PRL**.
+   
+   [**:paperclip: Paper Link**](#citations)
+   [**:pencil2: Citations**](#citations)
+   
+   <div align="center">
+  <img width="95%" alt="SS-PRL Gif" src="https://github.com/WesleyHsieh0806/SS-PRL/blob/master/GIF/Framework%20Gif.gif">
+   </div>
+   
+   * **Learning of Patch-Based Pyramid Representation**
+   * **Cross-Scale Patch-Level Correlation Learning with Correlation Learners**
+
+---
+
+
+  <h2> Table of Contents</h2>
+  <ul>
+    <li>
+      <a href="#books-prepare-dataset">Prepare Dataset</a>
+      <ul>
+        <!-- <li><a href="#built-with">Built With</a></li> -->
+      </ul>
+    </li>
+    <li>
+      <a href="#running-usage---training">Usage</a>
+    </li>
+    <li>
+      <a href="#bicyclist-downstream-tasks">Downstream tasks</a>
+    </li>
+    <li>
+      <a href="#citations">Citations</a>
+    </li>
+  </ul>
+
+
+
+---
+
 ## :books: Prepare Dataset
    Please refer to [Pretrained_Dataset](./Pretrained_Dataset.md) and [Downstream Tasks](#bicyclist-downstream-tasks) for further details.
    
@@ -28,7 +68,7 @@ Todo
    ```
 2. Transferring to Multi-Label Visual Analysis tasks:
 
-   Please Refer to Readme files for [Classification](./benchmarks/classification), [Object-Detection](./benchmarks/detection), and [Semantic Segmentation]((./benchmarks/Segmentation)) tasks.
+   Please Refer to Readme files for [Classification](./benchmarks/classification), [Object-Detection](./benchmarks/detection), and [Semantic Segmentation](https://github.com/WesleyHsieh0806/SS-PRL/tree/master/benchmarks/Segmentation) tasks.
 
 ## Citations
 ``` bash
