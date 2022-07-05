@@ -27,6 +27,32 @@
 
     ***${MODIFY_Model}*** : path of the Modified models
 -------
+
+## Prerequisites
+- Linux
+- Python 3.6+
+- PyTorch 1.3+
+- CUDA 9.2+ (Use nvcc --version to check)
+- GCC 5+
+- [mmcv-full 1.3.0](https://mmcv.readthedocs.io/en/latest/get_started/installation.html#installation)
+- mmsegmentation
+
+    Commands for setting up all the packages and data root: [Reference](https://github.com/WXinlong/mmsegmentation/edit/master/docs/get_started.md#linux)
+    
+    ```shell
+    conda create -n seg python=3.7 -y
+    conda activate seg
+
+    conda install pytorch=1.6.0 torchvision cudatoolkit=10.1 -c pytorch
+    pip install mmcv-full==1.3.0 -f https://download.openmmlab.com/mmcv/dist/cu92/torch1.6.0/index.html
+    git clone https://github.com/open-mmlab/mmsegmentation.git
+    cd mmsegmentation
+    pip install -e .
+
+    mkdir data
+    ln -s $DATAROOT/VOCdevkit ./data
+    ```
+    
 ## Semantic Segmentation Finetuning
 
 ### VOC12+aug
@@ -48,6 +74,7 @@
         cd mmsegmentation
         ln -s $DATAROOT/VOCdevkit ./data
     ```
+
 ### Start FineTuning
 You can also refer to [DenseCL](https://github.com/WXinlong/DenseCL/blob/main/benchmarks/detection/README.md)
 1. **cd mmsegmentation**
