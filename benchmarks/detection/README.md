@@ -2,7 +2,7 @@
 
 ## Requirements
 
-We use [detectron2](https://github.com/facebookresearch/detectron2) to train the object detection models. To install the package, please follow to the [installation instructions](https://github.com/facebookresearch/detectron2/blob/master/INSTALL.md).
+We use [detectron2](https://github.com/facebookresearch/detectron2) to train the object detection models. To install the package, please follow the [installation instructions](https://github.com/facebookresearch/detectron2/blob/master/INSTALL.md).
 
 
 ## Data & Model Preparation
