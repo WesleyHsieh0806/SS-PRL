@@ -1,4 +1,4 @@
-# Self-Supervised Pyramid Representation Learning <br>for Multi-Label Visual Analysis
+# Self-Supervised Pyramid Representation Learning <br>for Multi-Label Visual Analysis and Beyond
 
    This repository provides the official Pytorch implementation of pretraining and downstream evaluations for **SS-PRL**.
    
