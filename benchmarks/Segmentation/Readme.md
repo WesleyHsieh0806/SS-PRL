@@ -79,8 +79,9 @@
 You can also refer to [DenseCL](https://github.com/WXinlong/DenseCL/blob/main/benchmarks/detection/README.md)
 1. **cd mmsegmentation**
 2. Then, modify the pretrained model path in [configs](mmsegmentation/configs/densecl/fcn_r50-d8.py#L5)
-3. Modify the settings in [shell scripts](mmsegmentation/Segmentation_train.sh)
-4. Start Training
+3. Modify the learning rate in [schedule](https://github.com/WesleyHsieh0806/SS-PRL/blob/master/benchmarks/Segmentation/mmsegmentation/configs/_base_/schedules/schedule_20k.py)
+4. Modify the settings in [shell scripts](mmsegmentation/Segmentation_train.sh)
+5. Start Training
     ``` bash
     bash Segmentation_train.sh
     ```
