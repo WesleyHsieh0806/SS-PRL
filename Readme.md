@@ -2,7 +2,7 @@
 
    This repository provides the official Pytorch implementation of pretraining and downstream evaluations for **SS-PRL**.
    
-   [**:paperclip: Paper Link**](#citations)
+   [**:paperclip: Paper Link**](https://arxiv.org/abs/2208.14439)
    [**:pencil2: Citations**](#citations)
    
    <div align="center">
@@ -97,5 +97,12 @@ python setup.py install --cuda_ext
 
 ## Citations
 ``` bash
-Coming Soon
+@misc{hsieh2022selfsupervised,
+    title={Self-Supervised Pyramid Representation Learning for Multi-Label Visual Analysis and Beyond},
+    author={Cheng-Yen Hsieh and Chih-Jung Chang and Fu-En Yang and Yu-Chiang Frank Wang},
+    year={2022},
+    eprint={2208.14439},
+    archivePrefix={arXiv},
+    primaryClass={cs.CV}
+}
 ```
