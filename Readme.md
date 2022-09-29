@@ -106,3 +106,5 @@ python setup.py install --cuda_ext
     primaryClass={cs.CV}
 }
 ```
+## Acknowledgement
+Thanks the [Facebook-Research-SwAV](https://github.com/facebookresearch/swav) for its open-source project.
